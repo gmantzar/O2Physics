@@ -133,10 +133,10 @@ struct femtoDreamPairTaskTrackV0 {
   void init(InitContext&)
   {
     eventHisto.init(&qaRegistry);
-    trackHistoPartOne.init(&qaRegistry, ConfTrkTempFitVarpTBins, ConfTrkTempFitVarBins, ConfDummy, ConfDummy, ConfDummy, ConfDummy, ConfDummy, ConfIsMC, ConfTrkPDGCodePartOne);
-    trackHistoPartTwo.init(&qaRegistry, ConfV0TempFitVarpTBins, ConfV0TempFitVarBins, ConfV0TempFitVarInvMassBins, ConfDummy, ConfDummy, ConfDummy, ConfDummy, ConfIsMC, ConfV0PDGCodePartTwo);
-    posChildHistos.init(&qaRegistry, ConfChildTempFitVarpTBins, ConfChildTempFitVarBins, ConfDummy, ConfDummy, ConfDummy, ConfDummy, ConfDummy, false, false);
-    negChildHistos.init(&qaRegistry, ConfChildTempFitVarpTBins, ConfChildTempFitVarBins, ConfDummy, ConfDummy, ConfDummy, ConfDummy, ConfDummy, false, false);
+    trackHistoPartOne.init(&qaRegistry, ConfTrkTempFitVarpTBins, ConfTrkTempFitVarBins, ConfDummy, ConfDummy, ConfDummy, ConfDummy, ConfIsMC, ConfTrkPDGCodePartOne);
+    trackHistoPartTwo.init(&qaRegistry, ConfV0TempFitVarpTBins, ConfV0TempFitVarBins, ConfDummy, ConfDummy, ConfDummy, ConfV0TempFitVarInvMassBins, ConfIsMC, ConfV0PDGCodePartTwo);
+    posChildHistos.init(&qaRegistry, ConfChildTempFitVarpTBins, ConfChildTempFitVarBins, ConfDummy, ConfDummy, ConfDummy, ConfDummy, false, false);
+    negChildHistos.init(&qaRegistry, ConfChildTempFitVarpTBins, ConfChildTempFitVarBins, ConfDummy, ConfDummy, ConfDummy, ConfDummy, false, false);
 
     sameEventCont.init(&resultRegistry, ConfkstarBins, ConfMultBins, ConfkTBins, ConfmTBins, ConfmultBins3D, ConfmTBins3D, ConfIsMC, ConfUse3D);
     sameEventCont.setPDGCodes(ConfTrkPDGCodePartOne, ConfV0PDGCodePartTwo);
@@ -162,7 +162,7 @@ struct femtoDreamPairTaskTrackV0 {
           !isFullPIDSelected(part.pidcut(), part.p(), ConfTrkCutTable->get("Track", "PIDthr"), vPIDPartOne, ConfNspecies, kNsigma, ConfTrkCutTable->get("Track", "nSigmaTPC"), ConfTrkCutTable->get("Track", "nSigmaTPCTOF"))) {
         continue;
       }
-      trackHistoPartOne.fillQA<isMC, false>(part);
+      trackHistoPartOne.fillQA<false, false>(part, 0);
     }
 
     for (auto& part : groupPartsTwo) {
@@ -174,9 +174,9 @@ struct femtoDreamPairTaskTrackV0 {
           !isFullPIDSelected(negChild.pidcut(), negChild.p(), ConfV0ChildrenCutTable->get("PosChild", "PIDthr"), ConfChildNegIndex.value, ConfChildnSpecies.value, ConfChildPIDnSigmaMax.value, ConfV0ChildrenCutTable->get("NegChild", "nSigmaTPC"), ConfV0ChildrenCutTable->get("NegChild", "nSigmaTPCTOF"))) {
         continue;
       }
-      trackHistoPartTwo.fillQA<isMC, false>(part);
-      posChildHistos.fillQA<isMC, false>(posChild);
-      negChildHistos.fillQA<isMC, false>(negChild);
+      trackHistoPartTwo.fillQA<false, false>(part, 0);
+      posChildHistos.fillQA<false, false>(posChild, 0);
+      negChildHistos.fillQA<false, false>(negChild, 0);
     }
 
     /// Now build the combinations

@@ -382,7 +382,7 @@ void o2::aod::dqhistograms::DefineHistograms(HistogramManager* hm, const char* h
     }
     if (subGroupStr.Contains("muon")) {
       hm->AddHistogram(histClass, "MuonNClusters", "", false, 100, 0.0, 10.0, VarManager::kMuonNClusters);
-      hm->AddHistogram(histClass, "pdca", "", false, 100, 0.0, 500., VarManager::kMuonPDca);
+      hm->AddHistogram(histClass, "pdca", "", false, 200, 0.0, 1000., VarManager::kMuonPDca);
       hm->AddHistogram(histClass, "RAtAbsorberEnd", "", false, 100, 0.0, 200., VarManager::kMuonRAtAbsorberEnd);
       hm->AddHistogram(histClass, "Chi2", "", false, 100, 0.0, 200.0, VarManager::kMuonChi2);
       hm->AddHistogram(histClass, "Chi2MCHMID", "", false, 100, 0.0, 200.0, VarManager::kMuonChi2MatchMCHMID);
@@ -396,6 +396,12 @@ void o2::aod::dqhistograms::DefineHistograms(HistogramManager* hm, const char* h
       hm->AddHistogram(histClass, "MCHBitMap_vs_pt", "MCH vs pt", false, 1025, 0.0, 1025.0, VarManager::kMCHBitMap, 400, 0, 100, VarManager::kPt);
       hm->AddHistogram(histClass, "MuonTime", "", false, 100, -1.0, 1.0, VarManager::kMuonTime);
       hm->AddHistogram(histClass, "MuonTimeRes", "", false, 100, -1.0, 1.0, VarManager::kMuonTimeRes);
+    }
+    if (subGroupStr.Contains("muon-pdca")) {
+      hm->AddHistogram(histClass, "p", "p", false, 200, 0.0, 20.0, VarManager::kP);
+      hm->AddHistogram(histClass, "pdca_vs_p", "pDCA vs p", false, 2000, 0.0, 20.0, VarManager::kP, 200, 0.0, 1000., VarManager::kMuonPDca);
+      hm->AddHistogram(histClass, "pdca_vs_pt", "pDCA vs pt", false, 2000, 0.0, 20.0, VarManager::kPt, 200, 0.0, 1000., VarManager::kMuonPDca);
+      hm->AddHistogram(histClass, "pdca_vs_Rabs", "pDCA vs R_{abs}", false, 100, 0., 200., VarManager::kMuonRAtAbsorberEnd, 200, 0.0, 1000., VarManager::kMuonPDca);
     }
     if (subGroupStr.Contains("mc")) {
       hm->AddHistogram(histClass, "Pt_vs_PtMC", "pT vs MC pT", false, 50, 0.0, 10.0, VarManager::kPt, 50, 0.0, 10.0, VarManager::kMCPt);
@@ -539,7 +545,7 @@ void o2::aod::dqhistograms::DefineHistograms(HistogramManager* hm, const char* h
         // every 10 MeV from 0 to 1.1 GeV/c2
         // every 50 MeV from 1.1 to 2.7 GeV/c2
         // every 10 MeV from 2.7 to 3.2 GeV/c2
-        // every 50 MeV from 3.2 to 10 GeV/c2
+        // every 50 MeV from 3.2 to 12 GeV/c2
         double mee_bins[329];
         for (int i = 0; i <= 110; i++)
           mee_bins[i] = 0.01 * i;
@@ -547,7 +553,7 @@ void o2::aod::dqhistograms::DefineHistograms(HistogramManager* hm, const char* h
           mee_bins[110 + i] = 1.1 + 0.05 * i;
         for (int i = 1; i <= 50; i++)
           mee_bins[142 + i] = 2.7 + 0.01 * i;
-        for (int i = 1; i <= 136; i++)
+        for (int i = 1; i <= 176; i++)
           mee_bins[192 + i] = 3.2 + 0.05 * i;
         int nbins_mee = sizeof(mee_bins) / sizeof(*mee_bins) - 1;
 
