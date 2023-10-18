@@ -150,6 +150,7 @@ class FemtoDreamContainer
   /// \param pdg2 PDG code of particle two
   void setPDGCodes(const int pdg1, const int pdg2)
   {
+    // printf("Deuteron Mass: "+TDatabasePDG::Instance()->GetParticle(pdg2)->Mass()); 
     mMassOne = TDatabasePDG::Instance()->GetParticle(pdg1)->Mass();
     mMassTwo = TDatabasePDG::Instance()->GetParticle(pdg2)->Mass();
     mPDGOne = pdg1;

@@ -1,14 +1,3 @@
-// Copyright 2019-2020 CERN and copyright holders of ALICE O2.
-// See https://alice-o2.web.cern.ch/copyright for details of the copyright holders.
-// All rights not expressly granted are reserved.
-//
-// This software is distributed under the terms of the GNU General Public
-// License v3 (GPL Version 3), copied verbatim in the file "COPYING".
-//
-// In applying this license CERN does not waive the privileges and immunities
-// granted to it by virtue of its status as an Intergovernmental Organization
-// or submit itself to any jurisdiction.
-///
 /// \brief Femtodream Tutorial 0
 /// \author Luca Barioglio, Anton Riedel
 
@@ -24,7 +13,7 @@ using namespace o2::framework::expressions;
 // Example task illustrating how to create histograms and fill them with basic
 // information. A basic event selection is applied.
 
-struct CFTutorialTask0 {
+struct GeorgiosTask{
   HistogramRegistry histos{
     "Histos",
     {},
@@ -43,39 +32,34 @@ struct CFTutorialTask0 {
     AxisSpec ptAxis = {ptBinning, "#it{p}_{T} (GeV/#it{c})"};
 
     // Add histograms to histogram manager (as in the output object of in AliPhysics)
-    histos.add("hZvtx_before_sel", ";Z (cm)", kTH1F, {vtxZAxis});
-    histos.add("hZvtx_after_sel", ";Z (cm)", kTH1F, {vtxZAxis});
     histos.add("hP", ";#it{p} (GeV/#it{c})", kTH1F, {{35, 0.5, 4.}});
-    histos.add("hEta", ";#it{p} (GeV/#it{c})", kTH1F, {{100, -1.5, 1.5}});
     histos.add("hPt", ";#it{p}_{T} (GeV/#it{c})", kTH1F, {ptAxis});
-    histos.add("hNsigmaTPC", ";#it{p} (GeV/#it{c}); n#sigma_{TPC}^{proton}", kTH2F, {{35, 0.5, 4.}, {100, -5., 5.}});
   }
 
   // Equivalent of the AliRoot task UserExec
-  void process(aod::Collision const& coll, aod::Tracks const& inputTracks)
+  void process(aod::Track const& inputTrack)
   {
 
-    // Performing the event selection
-    histos.fill(HIST("hZvtx_before_sel"), coll.posZ());
-    if (fabs(coll.posZ()) > 10.f) {
-      return;
-    }
-    histos.fill(HIST("hZvtx_after_sel"), coll.posZ());
-
+    histos.fill(HIST("hP"), inputTrack.p());
+    histos.fill(HIST("hPt"), inputTrack.pt());
+    
+  }
+    /*
     // Loop over tracks
     for (auto track : inputTracks) {
-      if (fabs(track.eta()) > 0.8) {
-        continue;
-      }
+      //if (fabs(track.eta()) > 0.8) {
+      // continue;
+      //}
       histos.fill(HIST("hP"), track.p());
       histos.fill(HIST("hPt"), track.pt());
     }
-  }
+    */
+
 };
 
 WorkflowSpec defineDataProcessing(ConfigContext const& cfgc)
 {
   // Equivalent to the AddTask in AliPhysics
-  WorkflowSpec workflow{adaptAnalysisTask<CFTutorialTask0>(cfgc)};
+  WorkflowSpec workflow{adaptAnalysisTask<GeorgiosTask>(cfgc)};
   return workflow;
 }
