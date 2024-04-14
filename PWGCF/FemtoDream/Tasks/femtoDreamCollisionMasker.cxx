@@ -66,6 +66,8 @@ struct femoDreamCollisionMasker {
   std::array<std::vector<femtodreamparticle::cutContainerType>, CollisionMasks::kNParts> TrackCutBits;
   // particle tpc pid bits
   std::array<std::vector<femtodreamparticle::cutContainerType>, CollisionMasks::kNParts> TrackPIDTPCBits;
+  // particle tpc pid bits for rejection
+  std::array<std::vector<femtodreamparticle::cutContainerType>, CollisionMasks::kNParts> TrackPIDTPCBitsReject;
   // particle tpctof pid bits
   std::array<std::vector<femtodreamparticle::cutContainerType>, CollisionMasks::kNParts> TrackPIDTPCTOFBits;
   // particle momemtum threshold for PID
@@ -122,6 +124,8 @@ struct femoDreamCollisionMasker {
             TrackCutBits.at(CollisionMasks::kPartOne).push_back(option.defaultValue.get<femtodreamparticle::cutContainerType>());
           } else if (option.name.compare(std::string("ConfTrk1_TPCBit")) == 0) {
             TrackPIDTPCBits.at(CollisionMasks::kPartOne).push_back(option.defaultValue.get<femtodreamparticle::cutContainerType>());
+          } else if (option.name.compare(std::string("ConfTrk1_TPCBit_Reject")) == 0) {
+            TrackPIDTPCBitsReject.at(CollisionMasks::kPartOne).push_back(option.defaultValue.get<femtodreamparticle::cutContainerType>());
           } else if (option.name.compare(std::string("ConfTrk1_TPCTOFBit")) == 0) {
             TrackPIDTPCTOFBits.at(CollisionMasks::kPartOne).push_back(option.defaultValue.get<femtodreamparticle::cutContainerType>());
           } else if (option.name.compare(std::string("ConfTrk1_PIDThres")) == 0) {
@@ -138,6 +142,8 @@ struct femoDreamCollisionMasker {
             TrackCutBits.at(CollisionMasks::kPartTwo).push_back(option.defaultValue.get<femtodreamparticle::cutContainerType>());
           } else if (option.name.compare(std::string("ConfTrk2_TPCBit")) == 0) {
             TrackPIDTPCBits.at(CollisionMasks::kPartTwo).push_back(option.defaultValue.get<femtodreamparticle::cutContainerType>());
+          } else if (option.name.compare(std::string("ConfTrk2_TPCBit_Reject")) == 0) {
+            TrackPIDTPCBitsReject.at(CollisionMasks::kPartTwo).push_back(option.defaultValue.get<femtodreamparticle::cutContainerType>());
           } else if (option.name.compare(std::string("ConfTrk2_TPCTOFBit")) == 0) {
             TrackPIDTPCTOFBits.at(CollisionMasks::kPartTwo).push_back(option.defaultValue.get<femtodreamparticle::cutContainerType>());
           } else if (option.name.compare(std::string("ConfTrk2_PIDThres")) == 0) {
@@ -214,6 +220,8 @@ struct femoDreamCollisionMasker {
             TrackPIDThreshold.at(CollisionMasks::kPartOne).push_back(option.defaultValue.get<float>());
           } else if (option.name.compare(std::string("ConfMaxpT")) == 0) {
             FilterPtMax.at(CollisionMasks::kPartOne).push_back(option.defaultValue.get<float>());
+          } else if (option.name.compare(std::string("ConfMinpT")) == 0) {
+            FilterPtMin.at(CollisionMasks::kPartOne).push_back(option.defaultValue.get<float>());
           }
         }
       } else if (device.name.find("femto-dream-triplet-task-track-track-v0") != std::string::npos) {
@@ -230,6 +238,8 @@ struct femoDreamCollisionMasker {
             TrackPIDThreshold.at(CollisionMasks::kPartOne).push_back(option.defaultValue.get<float>());
           } else if (option.name.compare(std::string("ConfMaxpT")) == 0) {
             FilterPtMax.at(CollisionMasks::kPartOne).push_back(option.defaultValue.get<float>());
+          } else if (option.name.compare(std::string("ConfMinpT")) == 0) {
+            FilterPtMin.at(CollisionMasks::kPartOne).push_back(option.defaultValue.get<float>());
           } else if (option.name.compare(std::string("ConfCutV0")) == 0) {
             V0CutBits.at(CollisionMasks::kPartThree).push_back(option.defaultValue.get<femtodreamparticle::cutContainerType>());
           } else if (option.name.compare(std::string("Conf_ChildPos_CutV0")) == 0) {
@@ -284,7 +294,7 @@ struct femoDreamCollisionMasker {
       if ((track.cut() & TrackCutBits.at(P).at(index)) == TrackCutBits.at(P).at(index)) {
         // check pid cuts
         if (track.p() <= TrackPIDThreshold.at(P).at(index)) {
-          if ((track.pidcut() & TrackPIDTPCBits.at(P).at(index)) == TrackPIDTPCBits.at(P).at(index)) {
+          if ((track.pidcut() & TrackPIDTPCBits.at(P).at(index)) == TrackPIDTPCBits.at(P).at(index) && ((track.pidcut() & TrackPIDTPCBitsReject.at(P).at(index)) == 0u)) {
             BitSet.at(P).set(index);
           }
         } else {
@@ -319,7 +329,7 @@ struct femoDreamCollisionMasker {
           continue;
         }
         // check filter cuts
-        if (track.pt() > FilterPtMax.at(P).at(index)) {
+        if (track.pt() < FilterPtMin.at(P).at(index) || track.pt() > FilterPtMax.at(P).at(index)) {
           // if they are not passed, skip the particle
           continue;
         }
