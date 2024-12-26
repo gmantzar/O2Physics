@@ -559,7 +559,7 @@ std::array<cutContainerType, 5>
   auto lambdaMassHypothesis = v0.mLambda();
   auto antiLambdaMassHypothesis = v0.mAntiLambda();
   auto diffLambda = abs(lambdaMassNominal - lambdaMassHypothesis);
-  auto diffAntiLambda = abs(antiLambdaMassHypothesis - lambdaMassHypothesis);
+  auto diffAntiLambda = abs(lambdaMassNominal - antiLambdaMassHypothesis);
 
   float sign = 0.;
   int nSigmaPIDMax = PosDaughTrack.getSigmaPIDMax();
@@ -568,9 +568,9 @@ std::array<cutContainerType, 5>
   auto nSigmaPiNeg = negTrack.tpcNSigmaPi();
   auto nSigmaPrPos = posTrack.tpcNSigmaPr();
   // check the mass and the PID of daughters
-  if (abs(nSigmaPrNeg - nSigmaPIDOffsetTPC) < nSigmaPIDMax && abs(nSigmaPiPos - nSigmaPIDOffsetTPC) < nSigmaPIDMax && diffAntiLambda > diffLambda) {
+  if (abs(nSigmaPrNeg - nSigmaPIDOffsetTPC) < nSigmaPIDMax && abs(nSigmaPiPos - nSigmaPIDOffsetTPC) < nSigmaPIDMax && diffAntiLambda < diffLambda) {
     sign = -1.;
-  } else if (abs(nSigmaPrPos - nSigmaPIDOffsetTPC) < nSigmaPIDMax && abs(nSigmaPiNeg - nSigmaPIDOffsetTPC) < nSigmaPIDMax && diffAntiLambda < diffLambda) {
+  } else if (abs(nSigmaPrPos - nSigmaPIDOffsetTPC) < nSigmaPIDMax && abs(nSigmaPiNeg - nSigmaPIDOffsetTPC) < nSigmaPIDMax && diffAntiLambda > diffLambda) {
     sign = 1.;
   } else {
     // if it happens that none of these are true, ignore the invariant mass
