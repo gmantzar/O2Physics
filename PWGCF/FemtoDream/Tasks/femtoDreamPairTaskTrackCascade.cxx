@@ -28,6 +28,8 @@
 #include "PWGCF/FemtoDream/Core/femtoDreamContainer.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamDetaDphiStar.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamUtils.h"
+#include "PWGCF/FemtoDream/Core/femtoDreamMath.h"
+
 using namespace o2;
 using namespace o2::aod;
 using namespace o2::soa;
@@ -122,6 +124,10 @@ struct femtoDreamPairTaskTrackCascade {
     Configurable<float> EtaMax{"EtaMax", 10., "Maximum eta of Partricle 2 (V0)"};
     Configurable<bool> UseChildCuts{"UseChildCuts", true, "Use cuts on the children of the Cascades additional to those of the selection of the cascade builder (for debugging purposes)"};
     Configurable<bool> UseChildPIDCuts{"UseChildPIDCuts", true, "Use PID cuts on the children of the Cascades additional to those of the selection of the cascade builder (for debugging purposes)"};
+    Configurable<bool> ConfIsOmega{"ConfIsOmega", false, "Switch between Xi and Omaga Cascades: If true: Omega; else: Xi"};
+    Configurable<bool> ConfRejectCompetingMass{"ConfRejectCompetingMass", false, "Reject the competing Cascade Mass (use only for debugging. More efficient to exclude it already at the producer level)"};
+    Configurable<float> ConfCompetingCascadeMassLowLimit{"ConfCompetingCascadeMassLowLimit", 0., "Lower Limit of the invariant mass window within which to reject the cascade"};
+    Configurable<float> ConfCompetingCascadeMassUpLimit{"ConfCompetingCascadeMassUpLimit", 0., "Upper Limit of the invariant mass window within which to reject the cascade"};
   } Cascade2;
   /// Partition for particle 2
   Partition<FDParticles> PartitionCascade2 = (aod::femtodreamparticle::partType == uint8_t(aod::femtodreamparticle::ParticleType::kCascade)) &&
@@ -181,11 +187,27 @@ struct femtoDreamPairTaskTrackCascade {
   FemtoDreamDetaDphiStar<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kCascadeV0Child> pairCloseRejectionME;
 
   static constexpr uint32_t kSignPlusMask = 1 << 1;
+  
+  float massProton;
+  float massPion;
+  float massKaon;
+  float massLambda;
+  float massCompetingBach;
 
   /// Histogram output
   HistogramRegistry Registry{"Output", {}, OutputObjHandlingPolicy::AnalysisObject};
   void init(InitContext&)
   {
+    massProton = o2::analysis::femtoDream::getMass(2212);
+    massPion = o2::analysis::femtoDream::getMass(211);
+    massKaon = o2::analysis::femtoDream::getMass(321);
+    massLambda = o2::analysis::femtoDream::getMass(3122);
+    if (Cascade2.ConfIsOmega) { // if the Cascade is an Omega, then the bachelor is a Kaon
+      massCompetingBach = o2::analysis::femtoDream::getMass(211);
+    } else { // if the Cascade is a Xi, then the bachelor is a Pion
+      massCompetingBach = o2::analysis::femtoDream::getMass(321);
+    }
+
     // setup binnnig policy for mixing
     colBinningMult = {{Mixing.BinVztx, Mixing.BinMult}, true};
     colBinningMultPercentile = {{Mixing.BinVztx, Mixing.BinMultPercentile}, true};
@@ -254,6 +276,19 @@ struct femtoDreamPairTaskTrackCascade {
           continue;
         }
       }
+      // Competing mass rejection
+      if (Cascade2.ConfRejectCompetingMass) {
+        float invMassCompetingCasc;
+        if ((casc.cut() & 1UL) == 1UL){ //check if the charge of the Xi is negative (particle)
+          invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massProton, negChild, massPion, bachChild, massCompetingBach, massLambda);
+        } else {
+          invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massPion, negChild, massProton, bachChild, massCompetingBach, massLambda);
+        }
+        if (invMassCompetingCasc > Cascade2.ConfCompetingCascadeMassLowLimit.value &&
+            invMassCompetingCasc < Cascade2.ConfCompetingCascadeMassUpLimit.value) {
+          continue;
+        }
+      }
       trackHistoPartTwo.fillQA<isMC, false>(casc, aod::femtodreamparticle::kPt, col.multNtr(), col.multV0M());
       posChildHistos.fillQA<false, false>(posChild, aod::femtodreamparticle::kPt, col.multNtr(), col.multV0M());
       negChildHistos.fillQA<false, false>(negChild, aod::femtodreamparticle::kPt, col.multNtr(), col.multV0M());
@@ -277,6 +312,19 @@ struct femtoDreamPairTaskTrackCascade {
         if (!(((posChild.pidcut() & Cascade2.ChildPos_TPCBit) == Cascade2.ChildPos_TPCBit) &&
               ((negChild.pidcut() & Cascade2.ChildNeg_TPCBit) == Cascade2.ChildNeg_TPCBit) &&
               ((bachChild.pidcut() & Cascade2.ChildBach_TPCBit) == Cascade2.ChildBach_TPCBit))) {
+          continue;
+        }
+      }
+      // Competing mass rejection
+      if (Cascade2.ConfRejectCompetingMass) {
+        float invMassCompetingCasc;
+        if ((p2.cut() & 1UL) == 1UL){ //check if the charge of the Xi is negative (particle)
+          invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massProton, negChild, massPion, bachChild, massCompetingBach, massLambda);
+        } else {
+          invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massPion, negChild, massProton, bachChild, massCompetingBach, massLambda);
+        }
+        if (invMassCompetingCasc > Cascade2.ConfCompetingCascadeMassLowLimit.value &&
+            invMassCompetingCasc < Cascade2.ConfCompetingCascadeMassUpLimit.value) {
           continue;
         }
       }
@@ -342,6 +390,19 @@ struct femtoDreamPairTaskTrackCascade {
           if (!(((posChild.pidcut() & Cascade2.ChildPos_TPCBit) == Cascade2.ChildPos_TPCBit) &&
                 ((negChild.pidcut() & Cascade2.ChildNeg_TPCBit) == Cascade2.ChildNeg_TPCBit) &&
                 ((bachChild.pidcut() & Cascade2.ChildBach_TPCBit) == Cascade2.ChildBach_TPCBit))) {
+            continue;
+          }
+        }
+        // Competing mass rejection
+        if (Cascade2.ConfRejectCompetingMass) {
+          float invMassCompetingCasc;
+          if ((p2.cut() & 1UL) == 1UL){ //check if the charge of the Xi is negative (particle)
+            invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massProton, negChild, massPion, bachChild, massCompetingBach, massLambda);
+          } else {
+            invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massPion, negChild, massProton, bachChild, massCompetingBach, massLambda);
+          }
+          if (invMassCompetingCasc > Cascade2.ConfCompetingCascadeMassLowLimit.value &&
+              invMassCompetingCasc < Cascade2.ConfCompetingCascadeMassUpLimit.value) {
             continue;
           }
         }
