@@ -141,7 +141,7 @@ struct femtoDreamPairTaskTrackCascade {
                                              (aod::femtodreamparticle::mAntiLambda > Cascade2.InvMassV0DaughMin) &&
                                              (aod::femtodreamparticle::mAntiLambda < Cascade2.InvMassV0DaughMax);
   /// Histogramming for particle 2
-  FemtoDreamParticleHisto<aod::femtodreamparticle::ParticleType::kCascade, 2> trackHistoPartTwo;
+  FemtoDreamParticleHisto<aod::femtodreamparticle::ParticleType::kCascade, 2> cascadeHistoPartTwo;
   FemtoDreamParticleHisto<aod::femtodreamparticle::ParticleType::kCascadeV0Child, 3> posChildHistos;
   FemtoDreamParticleHisto<aod::femtodreamparticle::ParticleType::kCascadeV0Child, 4> negChildHistos;
   FemtoDreamParticleHisto<aod::femtodreamparticle::ParticleType::kCascadeBachelor, 8> bachChildHistos;
@@ -214,7 +214,7 @@ struct femtoDreamPairTaskTrackCascade {
     colBinningMultMultPercentile = {{Mixing.BinVztx, Mixing.BinMult, Mixing.BinMultPercentile}, true};
     eventHisto.init(&Registry, Option.IsMC);
     trackHistoPartOne.init(&Registry, Binning.multTempFit, Option.Dummy, Binning.pTTrack, Option.Dummy, Option.Dummy, Binning.TempFitVarTrack, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Option.IsMC, Track1.PDGCode);
-    trackHistoPartTwo.init(&Registry, Binning.multTempFit, Option.Dummy, Binning.pTCascade, Option.Dummy, Option.Dummy, Binning.TempFitVarCascade, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Binning.InvMass, Option.Dummy, Option.IsMC, Cascade2.PDGCode);
+    cascadeHistoPartTwo.init(&Registry, Binning.multTempFit, Option.Dummy, Binning.pTCascade, Option.Dummy, Option.Dummy, Binning.TempFitVarCascade, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Binning.InvMass, Option.Dummy, Option.IsMC, Cascade2.PDGCode);
     posChildHistos.init(&Registry, Binning.multTempFit, Option.Dummy, Binning.pTCascadeChild, Option.Dummy, Option.Dummy, Binning.TempFitVarCascadeChild, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, false, 0);
     negChildHistos.init(&Registry, Binning.multTempFit, Option.Dummy, Binning.pTCascadeChild, Option.Dummy, Option.Dummy, Binning.TempFitVarCascadeChild, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, false, 0);
     bachChildHistos.init(&Registry, Binning.multTempFit, Option.Dummy, Binning.pTCascadeChild, Option.Dummy, Option.Dummy, Binning.TempFitVarCascadeChild, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, Option.Dummy, false, 0);
@@ -277,8 +277,8 @@ struct femtoDreamPairTaskTrackCascade {
         }
       }
       // Competing mass rejection
+      float invMassCompetingCasc=0.;
       if (Cascade2.ConfRejectCompetingMass) {
-        float invMassCompetingCasc;
         if ((casc.cut() & 1UL) == 1UL){ //check if the charge of the Xi is negative (particle)
           invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massProton, negChild, massPion, bachChild, massCompetingBach, massLambda);
         } else {
@@ -289,7 +289,7 @@ struct femtoDreamPairTaskTrackCascade {
           continue;
         }
       }
-      trackHistoPartTwo.fillQA<isMC, false>(casc, aod::femtodreamparticle::kPt, col.multNtr(), col.multV0M());
+      cascadeHistoPartTwo.fillQA<isMC, false>(casc, aod::femtodreamparticle::kPt, col.multNtr(), col.multV0M(), false, invMassCompetingCasc);
       posChildHistos.fillQA<false, false>(posChild, aod::femtodreamparticle::kPt, col.multNtr(), col.multV0M());
       negChildHistos.fillQA<false, false>(negChild, aod::femtodreamparticle::kPt, col.multNtr(), col.multV0M());
       bachChildHistos.fillQA<false, false>(bachChild, aod::femtodreamparticle::kPt, col.multNtr(), col.multV0M());
