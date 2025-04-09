@@ -53,6 +53,7 @@ struct femtoDreamPairTaskTrackCascade {
     Configurable<bool> MixEventWithPairs{"MixEventWithPairs", false, "Only use events that contain particle 1 and partile 2 for the event mixing"};
     Configurable<bool> smearingByOrigin{"smearingByOrigin", false, "Obtain the smearing matrix differential in the MC origin of particle 1 and particle 2. High memory consumption. Use with care!"};
     ConfigurableAxis Dummy{"Dummy", {1, 0, 1}, "Dummy axis"};
+    Configurable<bool> UseDaughtersFemtoContainers{"UseDaughtersFemtoContainers", false, "Create the pair histograms also between the tracks and the Cascade Daughters (use for debugging)"};
   } Option;
   /// Event selection
   struct : ConfigurableGroup {
@@ -176,6 +177,14 @@ struct femtoDreamPairTaskTrackCascade {
   ColumnBinningPolicy<aod::collision::PosZ, aod::femtodreamcollision::MultNtr, aod::femtodreamcollision::MultV0M> colBinningMultMultPercentile{{Mixing.BinVztx, Mixing.BinMult, Mixing.BinMultPercentile}, true};
   FemtoDreamContainer<femtoDreamContainer::EventType::same, femtoDreamContainer::Observable::kstar> sameEventCont;
   FemtoDreamContainer<femtoDreamContainer::EventType::mixed, femtoDreamContainer::Observable::kstar> mixedEventCont;
+  //Track daughters 
+  FemtoDreamContainer<femtoDreamContainer::EventType::PosDaug_same, femtoDreamContainer::Observable::kstar> sameEventContPosDaug;
+  FemtoDreamContainer<femtoDreamContainer::EventType::NegDaug_same, femtoDreamContainer::Observable::kstar> sameEventContNegDaug;
+  FemtoDreamContainer<femtoDreamContainer::EventType::Bach_same, femtoDreamContainer::Observable::kstar> sameEventContBach;
+  FemtoDreamContainer<femtoDreamContainer::EventType::PosDaug_mixed, femtoDreamContainer::Observable::kstar> mixedEventContPosDaug;
+  FemtoDreamContainer<femtoDreamContainer::EventType::NegDaug_mixed, femtoDreamContainer::Observable::kstar> mixedEventContNegDaug;
+  FemtoDreamContainer<femtoDreamContainer::EventType::Bach_mixed, femtoDreamContainer::Observable::kstar> mixedEventContBach;
+  
   FemtoDreamPairCleaner<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kCascade> pairCleaner;
   FemtoDreamDetaDphiStar<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kCascadeV0Child> pairCloseRejectionSE;
   FemtoDreamDetaDphiStar<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kCascadeV0Child> pairCloseRejectionME;
@@ -184,8 +193,16 @@ struct femtoDreamPairTaskTrackCascade {
 
   /// Histogram output
   HistogramRegistry Registry{"Output", {}, OutputObjHandlingPolicy::AnalysisObject};
+
+  float massP1;
+  float massP2;
+
   void init(InitContext&)
   {
+
+    massP1 = o2::analysis::femtoDream::getMass(Track1.PDGCode);
+    massP2 = o2::analysis::femtoDream::getMass(Cascade2.PDGCode);
+
     // setup binnnig policy for mixing
     colBinningMult = {{Mixing.BinVztx, Mixing.BinMult}, true};
     colBinningMultPercentile = {{Mixing.BinVztx, Mixing.BinMultPercentile}, true};
@@ -201,7 +218,8 @@ struct femtoDreamPairTaskTrackCascade {
                        Binning4D.kstar, Binning4D.mT, Binning4D.Mult, Binning4D.multPercentile,
                        Option.IsMC, Option.Use4D, Option.ExtendedPlots,
                        Option.HighkstarCut,
-                       Option.smearingByOrigin);
+                       Option.smearingByOrigin,
+                       Option.Dummy, Binning.TempFitVarTrack, Binning.TempFitVarCascade);
 
     sameEventCont.setPDGCodes(Track1.PDGCode, Cascade2.PDGCode);
 
@@ -210,7 +228,54 @@ struct femtoDreamPairTaskTrackCascade {
                         Binning4D.kstar, Binning4D.mT, Binning4D.Mult, Binning4D.multPercentile,
                         Option.IsMC, Option.Use4D, Option.ExtendedPlots,
                         Option.HighkstarCut,
-                        Option.smearingByOrigin);
+                        Option.smearingByOrigin,
+                        Option.Dummy, Binning.TempFitVarTrack, Binning.TempFitVarCascade);
+    
+    if (Option.UseDaughtersFemtoContainers.value){
+      sameEventContPosDaug.init(&Registry,
+                                 Binning.kstar, Binning.pT, Binning.kT, Binning.mT, Mixing.BinMult, Mixing.BinMultPercentile,
+                                 Binning4D.kstar, Binning4D.mT, Binning4D.Mult, Binning4D.multPercentile,
+                                 Option.IsMC, Option.Use4D, Option.ExtendedPlots,
+                                 Option.HighkstarCut,
+                                 Option.smearingByOrigin,
+                                 Option.Dummy, Binning.TempFitVarTrack, Binning.TempFitVarTrack);
+      sameEventContNegDaug.init(&Registry,
+                                 Binning.kstar, Binning.pT, Binning.kT, Binning.mT, Mixing.BinMult, Mixing.BinMultPercentile,
+                                 Binning4D.kstar, Binning4D.mT, Binning4D.Mult, Binning4D.multPercentile,
+                                 Option.IsMC, Option.Use4D, Option.ExtendedPlots,
+                                 Option.HighkstarCut,
+                                 Option.smearingByOrigin,
+                                 Option.Dummy, Binning.TempFitVarTrack, Binning.TempFitVarTrack);
+      sameEventContBach.init(&Registry,
+                             Binning.kstar, Binning.pT, Binning.kT, Binning.mT, Mixing.BinMult, Mixing.BinMultPercentile,
+                             Binning4D.kstar, Binning4D.mT, Binning4D.Mult, Binning4D.multPercentile,
+                             Option.IsMC, Option.Use4D, Option.ExtendedPlots,
+                             Option.HighkstarCut,
+                             Option.smearingByOrigin,
+                                 Option.Dummy, Binning.TempFitVarTrack, Binning.TempFitVarTrack);
+      
+      mixedEventContPosDaug.init(&Registry,
+                                 Binning.kstar, Binning.pT, Binning.kT, Binning.mT, Mixing.BinMult, Mixing.BinMultPercentile,
+                                 Binning4D.kstar, Binning4D.mT, Binning4D.Mult, Binning4D.multPercentile,
+                                 Option.IsMC, Option.Use4D, Option.ExtendedPlots,
+                                 Option.HighkstarCut,
+                                 Option.smearingByOrigin,
+                                 Option.Dummy, Binning.TempFitVarTrack, Binning.TempFitVarTrack);
+      mixedEventContNegDaug.init(&Registry,
+                                 Binning.kstar, Binning.pT, Binning.kT, Binning.mT, Mixing.BinMult, Mixing.BinMultPercentile,
+                                 Binning4D.kstar, Binning4D.mT, Binning4D.Mult, Binning4D.multPercentile,
+                                 Option.IsMC, Option.Use4D, Option.ExtendedPlots,
+                                 Option.HighkstarCut,
+                                 Option.smearingByOrigin,
+                                 Option.Dummy, Binning.TempFitVarTrack, Binning.TempFitVarTrack);
+      mixedEventContBach.init(&Registry,
+                               Binning.kstar, Binning.pT, Binning.kT, Binning.mT, Mixing.BinMult, Mixing.BinMultPercentile,
+                               Binning4D.kstar, Binning4D.mT, Binning4D.Mult, Binning4D.multPercentile,
+                               Option.IsMC, Option.Use4D, Option.ExtendedPlots,
+                               Option.HighkstarCut,
+                               Option.smearingByOrigin,
+                               Option.Dummy, Binning.TempFitVarTrack, Binning.TempFitVarTrack);
+    } 
 
     mixedEventCont.setPDGCodes(Track1.PDGCode, Cascade2.PDGCode);
 
@@ -295,7 +360,15 @@ struct femtoDreamPairTaskTrackCascade {
       if (!pairCleaner.isCleanPair(p1, p2, parts)) {
         continue;
       }
-      sameEventCont.setPair<isMC>(p1, p2, col.multNtr(), col.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin);
+      const float kstar = FemtoDreamMath::getkstar(p1, massP1, p2, massP2);
+      const float mT = FemtoDreamMath::getmT(p1, massP1, p2, massP2);
+      sameEventCont.setPair<isMC>(p1, p2, col.multNtr(), col.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin, kstar, mT, p1.tempFitVar(), p2.tempFitVar());
+      // Fill QA histos
+      if (Option.UseDaughtersFemtoContainers.value){
+        sameEventContPosDaug.setPair<false>(p1, posChild, col.multNtr(), col.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin, kstar, mT, p1.tempFitVar(), posChild.tempFitVar());
+        sameEventContNegDaug.setPair<false>(p1, negChild, col.multNtr(), col.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin, kstar, mT, p1.tempFitVar(), negChild.tempFitVar());
+        sameEventContBach.setPair<false>(p1, bachChild, col.multNtr(), col.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin, kstar, mT, p1.tempFitVar(), bachChild.tempFitVar());
+      }
     }
   }
   void processSameEvent(FilteredCollision const& col, FDParticles const& parts)
@@ -362,7 +435,15 @@ struct femtoDreamPairTaskTrackCascade {
         //  continue;
         //}
 
-        mixedEventCont.setPair<isMC>(p1, p2, collision1.multNtr(), collision1.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin);
+        const float kstar = FemtoDreamMath::getkstar(p1, massP1, p2, massP2);
+        const float mT = FemtoDreamMath::getmT(p1, massP1, p2, massP2);
+        mixedEventCont.setPair<isMC>(p1, p2, collision1.multNtr(), collision1.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin, kstar, mT, p1.tempFitVar(), p2.tempFitVar());
+        // Fill QA histos
+        if (Option.UseDaughtersFemtoContainers.value){
+          mixedEventContPosDaug.setPair<false>(p1, posChild, collision1.multNtr(), collision1.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin, kstar, mT, p1.tempFitVar(), posChild.tempFitVar());
+          mixedEventContNegDaug.setPair<false>(p1, negChild, collision1.multNtr(), collision1.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin, kstar, mT, p1.tempFitVar(), negChild.tempFitVar());
+          mixedEventContBach.setPair<false>(p1, bachChild, collision1.multNtr(), collision1.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin, kstar, mT, p1.tempFitVar(), bachChild.tempFitVar());
+        }
       }
     }
   }
