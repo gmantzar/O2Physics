@@ -44,6 +44,7 @@ struct femtoDreamPairTaskTrackCascade {
     Configurable<bool> Use4D{"Use4D", false, "Enable four dimensional histogramms (to be used only for analysis with high statistics): k* vs multiplicity vs multiplicity percentil vs mT"};
     Configurable<bool> ExtendedPlots{"ExtendedPlots", false, "Enable additional three dimensional histogramms. High memory consumption. Use for debugging"};
     Configurable<float> HighkstarCut{"HighkstarCut", -1., "Set a cut for high k*, above which the pairs are rejected. Set it to -1 to deactivate it"};
+    Configurable<bool> PairCleanerOn{"PairCleanerOn", true, "PairCleaner (for debugging)"};
     Configurable<bool> CPROn{"CPROn", true, "Close Pair Rejection"};
     Configurable<bool> CPROld{"CPROld", false, "Set to FALSE to use fixed version of CPR (for testing now, will be default soon)"};
     Configurable<bool> CPRPlotPerRadii{"CPRPlotPerRadii", false, "Plot CPR per radii"};
@@ -62,13 +63,19 @@ struct femtoDreamPairTaskTrackCascade {
     Configurable<float> MultPercentileMin{"MultPercentileMin", 0, "Minimum Multiplicity Percentile"};
     Configurable<float> MultPercentileMax{"MultPercentileMax", 100, "Maximum Multiplicity Percentile"};
   } EventSel;
-  // Filter EventMultiplicity = aod::femtodreamcollision::multNtr >= EventSel.MultMin && aod::femtodreamcollision::multNtr <= EventSel.MultMax;
-  // Filter EventMultiplicityPercentile = aod::femtodreamcollision::multV0M >= EventSel.MultPercentileMin && aod::femtodreamcollision::multV0M <= EventSel.MultPercentileMax;
+  
+  Filter EventMultiplicity = aod::femtodreamcollision::multNtr >= EventSel.MultMin && aod::femtodreamcollision::multNtr <= EventSel.MultMax;
+  Filter EventMultiplicityPercentile = aod::femtodreamcollision::multV0M >= EventSel.MultPercentileMin && aod::femtodreamcollision::multV0M <= EventSel.MultPercentileMax;
+  
   /// Histogramming for Event
   FemtoDreamEventHisto eventHisto;
-  // using FilteredCollisions = soa::Filtered<FDCollisions>;
-  using FilteredCollisions = FDCollisions;
+  using FilteredCollisions = soa::Filtered<FDCollisions>;
+  //using FilteredCollisions = FDCollisions;
   using FilteredCollision = FilteredCollisions::iterator;
+  using FilteredMaskedCollisions = soa::Filtered<soa::Join<FDCollisions, FDColMasks, FDDownSample>>;
+  //using FilteredMaskedCollisions = soa::Join<FDCollisions, FDColMasks, FDDownSample>;
+  using FilteredMaskedCollision = FilteredMaskedCollisions::iterator;
+  
   using FDMCParts = soa::Join<aod::FDParticles, aod::FDMCLabels>;
   using FDMCPart = FDMCParts::iterator;
   femtodreamcollision::BitMaskType BitMask = 1;
@@ -114,14 +121,18 @@ struct femtoDreamPairTaskTrackCascade {
     Configurable<femtodreamparticle::cutContainerType> ChildBach_TPCBit{"ChildBach_TPCBit", 64, "PID TPC bit for bachelor child of Cascade"};
     Configurable<float> InvMassMin{"InvMassMin", 1.2, "Minimum invariant mass of Partricle 2 (particle) (Cascade)"};
     Configurable<float> InvMassMax{"InvMassMax", 1.4, "Maximum invariant mass of Partricle 2 (particle) (Cascade)"};
-    Configurable<float> InvMassV0DaughMin{"InvMassV0DaugMin", 0., "Minimum invariant mass of the V0 Daughter"};
-    Configurable<float> InvMassV0DaughMax{"InvMassV0DaugMax", 999., "Maximum invariant mass of the V0 Daughter"};
+    Configurable<float> InvMassV0DaughMin{"InvMassV0DaughMin", 0., "Minimum invariant mass of the V0 Daughter"};
+    Configurable<float> InvMassV0DaughMax{"InvMassV0DaughMax", 999., "Maximum invariant mass of the V0 Daughter"};
     Configurable<float> PtMin{"PtMin", 0., "Minimum pT of Partricle 2 (V0)"};
     Configurable<float> PtMax{"PtMax", 999., "Maximum pT of Partricle 2 (V0)"};
     Configurable<float> EtaMin{"EtaMin", -10., "Minimum eta of Partricle 2 (V0)"};
     Configurable<float> EtaMax{"EtaMax", 10., "Maximum eta of Partricle 2 (V0)"};
     Configurable<bool> UseChildCuts{"UseChildCuts", true, "Use cuts on the children of the Cascades additional to those of the selection of the cascade builder (for debugging purposes)"};
     Configurable<bool> UseChildPIDCuts{"UseChildPIDCuts", true, "Use PID cuts on the children of the Cascades additional to those of the selection of the cascade builder (for debugging purposes)"};
+    Configurable<bool> ConfIsOmega{"ConfIsOmega", false, "Switch between Xi and Omaga Cascades: If true: Omega; else: Xi"};
+    Configurable<bool> ConfRejectCompetingMass{"ConfRejectCompetingMass", false, "Reject the competing Cascade Mass (use only for debugging. More efficient to exclude it already at the producer level)"};
+    Configurable<float> ConfCompetingCascadeMassLowLimit{"ConfCompetingCascadeMassLowLimit", 0., "Lower Limit of the invariant mass window within which to reject the cascade"};
+    Configurable<float> ConfCompetingCascadeMassUpLimit{"ConfCompetingCascadeMassUpLimit", 0., "Upper Limit of the invariant mass window within which to reject the cascade"};
   } Cascade2;
   /// Partition for particle 2
   Partition<FDParticles> PartitionCascade2 = (aod::femtodreamparticle::partType == uint8_t(aod::femtodreamparticle::ParticleType::kCascade)) &&
@@ -184,8 +195,26 @@ struct femtoDreamPairTaskTrackCascade {
 
   /// Histogram output
   HistogramRegistry Registry{"Output", {}, OutputObjHandlingPolicy::AnalysisObject};
-  void init(InitContext&)
+  
+  float massProton;
+  float massPion;
+  float massKaon;
+  float massLambda;
+  float massCompetingBach;
+
+  void init(InitContext& context)
   {
+
+    massProton = o2::analysis::femtoDream::getMass(2212);
+    massPion = o2::analysis::femtoDream::getMass(211);
+    massKaon = o2::analysis::femtoDream::getMass(321);
+    massLambda = o2::analysis::femtoDream::getMass(3122);
+    if (Cascade2.ConfIsOmega) { // if the Cascade is an Omega, then the bachelor is a Kaon
+      massCompetingBach = o2::analysis::femtoDream::getMass(211);
+    } else { // if the Cascade is a Xi, then the bachelor is a Pion
+      massCompetingBach = o2::analysis::femtoDream::getMass(321);
+    }
+
     // setup binnnig policy for mixing
     colBinningMult = {{Mixing.BinVztx, Mixing.BinMult}, true};
     colBinningMultPercentile = {{Mixing.BinVztx, Mixing.BinMultPercentile}, true};
@@ -219,6 +248,52 @@ struct femtoDreamPairTaskTrackCascade {
       pairCloseRejectionSE.init(&Registry, &Registry, Option.CPRdeltaPhiMax.value, Option.CPRdeltaEtaMax.value, Option.CPRPlotPerRadii.value, 1, Option.CPROld.value);
       pairCloseRejectionME.init(&Registry, &Registry, Option.CPRdeltaPhiMax.value, Option.CPRdeltaEtaMax.value, Option.CPRPlotPerRadii.value, 2, Option.CPROld.value, 99, true);
     }
+    
+    // get bit for the collision mask
+    std::bitset<8 * sizeof(femtodreamcollision::BitMaskType)> mask;
+    int index = 0;
+    auto& workflows = context.services().get<RunningWorkflowInfo const>();
+    for (DeviceSpec const& device : workflows.devices) {
+      if (device.name.find("femto-dream-pair-task-track-cascade") != std::string::npos) {
+        if (containsNameValuePair(device.options, "Track1.CutBit", Track1.CutBit.value) &&
+            containsNameValuePair(device.options, "Track1.TPCBit", Track1.TPCBit.value) &&
+            containsNameValuePair(device.options, "Track1.TPCBit_Reject", Track1.TPCBit_Reject.value) &&
+            containsNameValuePair(device.options, "Track1.TPCTOFBit", Track1.TPCTOFBit.value) &&
+            containsNameValuePair(device.options, "Track1.PIDThres", Track1.PIDThres.value) &&
+            containsNameValuePair(device.options, "Track1.PtMin", Track1.PtMin.value) &&
+            containsNameValuePair(device.options, "Track1.PtMax", Track1.PtMax.value) &&
+            containsNameValuePair(device.options, "Track1.EtaMin", Track1.EtaMin.value) &&
+            containsNameValuePair(device.options, "Track1.EtaMax", Track1.EtaMax.value) &&
+            containsNameValuePair(device.options, "Track1.TempFitVarMin", Track1.TempFitVarMin.value) &&
+            containsNameValuePair(device.options, "Track1.TempFitVarMax", Track1.TempFitVarMax.value) &&
+            containsNameValuePair(device.options, "Cascade2.CutBit", Cascade2.CutBit.value) &&
+            containsNameValuePair(device.options, "Cascade2.ChildPos_CutBit", Cascade2.ChildPos_CutBit.value) &&
+            containsNameValuePair(device.options, "Cascade2.ChildPos_TPCBit", Cascade2.ChildPos_TPCBit.value) &&
+            containsNameValuePair(device.options, "Cascade2.ChildNeg_CutBit", Cascade2.ChildNeg_CutBit.value) &&
+            containsNameValuePair(device.options, "Cascade2.ChildNeg_TPCBit", Cascade2.ChildNeg_TPCBit.value) &&
+            containsNameValuePair(device.options, "Cascade2.ChildBach_CutBit", Cascade2.ChildBach_CutBit.value) &&
+            containsNameValuePair(device.options, "Cascade2.ChildBach_TPCBit", Cascade2.ChildBach_TPCBit.value) &&
+            containsNameValuePair(device.options, "Cascade2.InvMassMin", Cascade2.InvMassMin.value) &&
+            containsNameValuePair(device.options, "Cascade2.InvMassMax", Cascade2.InvMassMax.value) &&
+            containsNameValuePair(device.options, "Cascade2.InvMassV0DaughMin", Cascade2.InvMassV0DaughMin.value) &&
+            containsNameValuePair(device.options, "Cascade2.InvMassV0DaughMax", Cascade2.InvMassV0DaughMax.value) &&
+            containsNameValuePair(device.options, "Cascade2.PtMin", Cascade2.PtMin.value) &&
+            containsNameValuePair(device.options, "Cascade2.PtMax", Cascade2.PtMax.value) &&
+            containsNameValuePair(device.options, "Cascade2.EtaMin", Cascade2.EtaMin.value) &&
+            containsNameValuePair(device.options, "Cascade2.EtaMax", Cascade2.EtaMax.value)) {
+          mask.set(index);
+          BitMask = static_cast<femtodreamcollision::BitMaskType>(mask.to_ulong());
+          LOG(info) << "Device name matched: " << device.name;
+          LOG(info) << "Bitmask for collisions: " << mask.to_string();
+          break;
+        } else {
+          index++;
+        }
+      }
+    } 
+  
+  
+  
   }
 
   /// This function processes the same event and takes care of all the histogramming
@@ -280,6 +355,20 @@ struct femtoDreamPairTaskTrackCascade {
           continue;
         }
       }
+      
+      if (Cascade2.ConfRejectCompetingMass) {
+        float invMassCompetingCasc;
+        if ((p2.cut() & kSignPlusMask) == kSignPlusMask) {
+          invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massPion, negChild, massProton, bachChild, massCompetingBach, massLambda);
+        } else {
+          invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massProton, negChild, massPion, bachChild, massCompetingBach, massLambda);
+        }
+        if (invMassCompetingCasc > Cascade2.ConfCompetingCascadeMassLowLimit.value &&
+            invMassCompetingCasc < Cascade2.ConfCompetingCascadeMassUpLimit.value) {
+          continue;
+        }
+      }
+
       if (Option.CPROn.value) {
         if ((p1.cut() & kSignPlusMask) == kSignPlusMask) {
           if (pairCloseRejectionSE.isClosePair(p1, posChild, parts, col.magField())) {
@@ -292,7 +381,7 @@ struct femtoDreamPairTaskTrackCascade {
         }
       }
 
-      if (!pairCleaner.isCleanPair(p1, p2, parts)) {
+      if (Option.PairCleanerOn.value && !pairCleaner.isCleanPair(p1, p2, parts)) {
         continue;
       }
       sameEventCont.setPair<isMC>(p1, p2, col.multNtr(), col.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin);
@@ -309,6 +398,18 @@ struct femtoDreamPairTaskTrackCascade {
     doSameEvent<false>(SliceTrk1, SliceCascade2, parts, col);
   }
   PROCESS_SWITCH(femtoDreamPairTaskTrackCascade, processSameEvent, "Enable processing same event", true);
+  
+  void processSameEventMasked(FilteredMaskedCollision const& col, FDParticles const& parts)
+  {
+    if ((col.bitmaskTrackOne() & BitMask) != BitMask || (col.bitmaskTrackTwo() & BitMask) != BitMask) {
+      return;
+    }
+    eventHisto.fillQA<false>(col);
+    auto SliceTrk1 = PartitionTrk1->sliceByCached(aod::femtodreamparticle::fdCollisionId, col.globalIndex(), cache);
+    auto SliceCascade2 = PartitionCascade2->sliceByCached(aod::femtodreamparticle::fdCollisionId, col.globalIndex(), cache);
+    doSameEvent<false>(SliceTrk1, SliceCascade2, parts, col);
+  }
+  PROCESS_SWITCH(femtoDreamPairTaskTrackCascade, processSameEventMasked, "Enable processing masked same event", false);
 
   template <bool isMC, typename CollisionType, typename PartType, typename PartitionType, typename BinningType>
   void doMixedEvent(CollisionType const& cols, PartType const& parts, PartitionType& part1, PartitionType& part2, BinningType policy)
@@ -345,6 +446,19 @@ struct femtoDreamPairTaskTrackCascade {
             continue;
           }
         }
+        
+        if (Cascade2.ConfRejectCompetingMass) {
+          float invMassCompetingCasc;
+          if ((p2.cut() & kSignPlusMask) == kSignPlusMask) {
+            invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massPion, negChild, massProton, bachChild, massCompetingBach, massLambda);
+          } else {
+            invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massProton, negChild, massPion, bachChild, massCompetingBach, massLambda);
+          }
+          if (invMassCompetingCasc > Cascade2.ConfCompetingCascadeMassLowLimit.value &&
+              invMassCompetingCasc < Cascade2.ConfCompetingCascadeMassUpLimit.value) {
+            continue;
+          }
+        }
 
         if (Option.CPROn.value) {
           if ((p1.cut() & kSignPlusMask) == kSignPlusMask) {
@@ -367,6 +481,138 @@ struct femtoDreamPairTaskTrackCascade {
     }
   }
 
+  template <bool isMC, typename CollisionType, typename PartType, typename PartitionType, typename BinningType>
+  void doMixedEvent_Masked(CollisionType const& cols, PartType const& parts, PartitionType& part1, PartitionType& part2, BinningType policy)
+  {
+    if (Option.MixEventWithPairs.value){
+      Partition<CollisionType> PartitionMaskedCol = ncheckbit(aod::femtodreamcollision::bitmaskTrackOne, BitMask) && ncheckbit(aod::femtodreamcollision::bitmaskTrackTwo, BitMask) && aod::femtodreamcollision::downsample == true;
+      PartitionMaskedCol.bindTable(cols);
+
+      // use *Partition.mFiltered when passing the partition to mixing object
+      // there is an issue when the partition is passed directly
+      // workaround for now, change back once it is fixed
+      for (auto const& [collision1, collision2] : soa::selfCombinations(policy, Mixing.Depth.value, -1, *PartitionMaskedCol.mFiltered, *PartitionMaskedCol.mFiltered)) {
+        // make sure that tracks in same events are not mixed
+        if (collision1.globalIndex() == collision2.globalIndex()) {
+          continue;
+        }
+        auto SliceTrk1 = part1->sliceByCached(aod::femtodreamparticle::fdCollisionId, collision1.globalIndex(), cache);
+        auto SliceCasc2 = part2->sliceByCached(aod::femtodreamparticle::fdCollisionId, collision2.globalIndex(), cache);
+        for (auto& [p1, p2] : combinations(CombinationsFullIndexPolicy(SliceTrk1, SliceCasc2))) {
+          const auto& posChild = parts.iteratorAt(p2.index() - 3);
+          const auto& negChild = parts.iteratorAt(p2.index() - 2);
+          const auto& bachChild = parts.iteratorAt(p2.index() - 1);
+          // check cuts on Cascade children
+          if (Cascade2.UseChildCuts) {
+            if (!(((posChild.cut() & Cascade2.ChildPos_CutBit) == Cascade2.ChildPos_CutBit) &&
+                  ((negChild.cut() & Cascade2.ChildNeg_CutBit) == Cascade2.ChildNeg_CutBit) &&
+                  ((bachChild.cut() & Cascade2.ChildBach_CutBit) == Cascade2.ChildBach_CutBit))) {
+              continue;
+            }
+          }
+          if (Cascade2.UseChildPIDCuts) {
+            if (!(((posChild.pidcut() & Cascade2.ChildPos_TPCBit) == Cascade2.ChildPos_TPCBit) &&
+                  ((negChild.pidcut() & Cascade2.ChildNeg_TPCBit) == Cascade2.ChildNeg_TPCBit) &&
+                  ((bachChild.pidcut() & Cascade2.ChildBach_TPCBit) == Cascade2.ChildBach_TPCBit))) {
+              continue;
+            }
+          }
+          
+          if (Cascade2.ConfRejectCompetingMass) {
+            float invMassCompetingCasc;
+            if ((p2.cut() & kSignPlusMask) == kSignPlusMask) {
+              invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massPion, negChild, massProton, bachChild, massCompetingBach, massLambda);
+            } else {
+              invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massProton, negChild, massPion, bachChild, massCompetingBach, massLambda);
+            }
+            if (invMassCompetingCasc > Cascade2.ConfCompetingCascadeMassLowLimit.value &&
+                invMassCompetingCasc < Cascade2.ConfCompetingCascadeMassUpLimit.value) {
+              continue;
+            }
+          }
+
+          if (Option.CPROn.value) {
+            if ((p1.cut() & kSignPlusMask) == kSignPlusMask) {
+              if (pairCloseRejectionME.isClosePair(p1, posChild, parts, collision1.magField())) {
+                continue;
+              }
+            } else {
+              if (pairCloseRejectionME.isClosePair(p1, negChild, parts, collision1.magField())) {
+                continue;
+              }
+            }
+          }
+          // Pair cleaner not needed in the mixing
+          // if (!pairCleaner.isCleanPair(p1, p2, parts)) {
+          //  continue;
+          //}
+
+          mixedEventCont.setPair<isMC>(p1, p2, collision1.multNtr(), collision1.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin);
+        }
+      }
+    } else {
+      Partition<CollisionType> PartitionMaskedCol1 = ncheckbit(aod::femtodreamcollision::bitmaskTrackOne, BitMask) && aod::femtodreamcollision::downsample == true;
+      Partition<CollisionType> PartitionMaskedCol2 = ncheckbit(aod::femtodreamcollision::bitmaskTrackTwo, BitMask) && aod::femtodreamcollision::downsample == true;
+      PartitionMaskedCol1.bindTable(cols);
+      PartitionMaskedCol2.bindTable(cols);
+
+      for (auto const& [collision1, collision2] : soa::selfCombinations(policy, Mixing.Depth.value, -1, *PartitionMaskedCol1.mFiltered, *PartitionMaskedCol2.mFiltered)) {
+        // make sure that tracks in same events are not mixed
+        if (collision1.globalIndex() == collision2.globalIndex()) {
+          continue;
+        }
+        auto SliceTrk1 = part1->sliceByCached(aod::femtodreamparticle::fdCollisionId, collision1.globalIndex(), cache);
+        auto SliceCasc2 = part2->sliceByCached(aod::femtodreamparticle::fdCollisionId, collision2.globalIndex(), cache);
+        for (auto& [p1, p2] : combinations(CombinationsFullIndexPolicy(SliceTrk1, SliceCasc2))) {
+          const auto& posChild = parts.iteratorAt(p2.index() - 3);
+          const auto& negChild = parts.iteratorAt(p2.index() - 2);
+          const auto& bachChild = parts.iteratorAt(p2.index() - 1);
+          // check cuts on Cascade children
+          if (Cascade2.UseChildCuts) {
+            if (!(((posChild.cut() & Cascade2.ChildPos_CutBit) == Cascade2.ChildPos_CutBit) &&
+                  ((negChild.cut() & Cascade2.ChildNeg_CutBit) == Cascade2.ChildNeg_CutBit) &&
+                  ((bachChild.cut() & Cascade2.ChildBach_CutBit) == Cascade2.ChildBach_CutBit))) {
+              continue;
+            }
+          }
+          if (Cascade2.UseChildPIDCuts) {
+            if (!(((posChild.pidcut() & Cascade2.ChildPos_TPCBit) == Cascade2.ChildPos_TPCBit) &&
+                  ((negChild.pidcut() & Cascade2.ChildNeg_TPCBit) == Cascade2.ChildNeg_TPCBit) &&
+                  ((bachChild.pidcut() & Cascade2.ChildBach_TPCBit) == Cascade2.ChildBach_TPCBit))) {
+              continue;
+            }
+          }
+          
+          if (Cascade2.ConfRejectCompetingMass) {
+            float invMassCompetingCasc;
+            if ((p2.cut() & kSignPlusMask) == kSignPlusMask) {
+              invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massPion, negChild, massProton, bachChild, massCompetingBach, massLambda);
+            } else {
+              invMassCompetingCasc = FemtoDreamMath::getInvMassCascade(posChild, massProton, negChild, massPion, bachChild, massCompetingBach, massLambda);
+            }
+            if (invMassCompetingCasc > Cascade2.ConfCompetingCascadeMassLowLimit.value &&
+                invMassCompetingCasc < Cascade2.ConfCompetingCascadeMassUpLimit.value) {
+              continue;
+            }
+          }
+
+          if (Option.CPROn.value) {
+            if ((p1.cut() & kSignPlusMask) == kSignPlusMask) {
+              if (pairCloseRejectionME.isClosePair(p1, posChild, parts, collision1.magField())) {
+                continue;
+              }
+            } else {
+              if (pairCloseRejectionME.isClosePair(p1, negChild, parts, collision1.magField())) {
+                continue;
+              }
+            }
+          }
+          mixedEventCont.setPair<isMC>(p1, p2, collision1.multNtr(), collision1.multV0M(), Option.Use4D, Option.ExtendedPlots, Option.smearingByOrigin);
+        }
+      }
+    }
+  }
+  
   void processMixedEvent(FilteredCollisions const& cols, FDParticles const& parts)
   {
     switch (Mixing.Policy.value) {
@@ -384,6 +630,28 @@ struct femtoDreamPairTaskTrackCascade {
     }
   }
   PROCESS_SWITCH(femtoDreamPairTaskTrackCascade, processMixedEvent, "Enable processing mixed events", true);
+
+  void processMixedEventMasked(FilteredMaskedCollisions const& cols, FDParticles const& parts)
+  {
+    //if ((col.bitmaskTrackOne() & BitMask) != BitMask || (col.bitmaskTrackTwo() & BitMask) != BitMask) {
+    //  return;
+    //}
+    switch (Mixing.Policy.value) {
+      case femtodreamcollision::kMult:
+        doMixedEvent_Masked<false>(cols, parts, PartitionTrk1, PartitionCascade2, colBinningMult);
+        break;
+      case femtodreamcollision::kMultPercentile:
+        doMixedEvent_Masked<false>(cols, parts, PartitionTrk1, PartitionCascade2, colBinningMultPercentile);
+        break;
+      case femtodreamcollision::kMultMultPercentile:
+        doMixedEvent_Masked<false>(cols, parts, PartitionTrk1, PartitionCascade2, colBinningMultMultPercentile);
+        break;
+      default:
+        LOG(fatal) << "Invalid binning policiy specifed. Breaking...";
+    }
+  }
+  PROCESS_SWITCH(femtoDreamPairTaskTrackCascade, processMixedEventMasked, "Enable processing mixed events masked", false);
+
 };
 WorkflowSpec defineDataProcessing(ConfigContext const& cfgc)
 {
