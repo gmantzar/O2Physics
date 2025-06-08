@@ -1062,7 +1062,7 @@ struct femtoDreamProducerTaskWithCascades {
                 aod::BCsWithTimestamps const&,
                 aod::FemtoFullTracks const& tracks,
                 o2::aod::V0Datas const& fullV0s,
-                o2::aod::V0sLinked const&,
+                //o2::aod::V0sLinked const&,
                 o2::aod::CascDatas const& fullCascades)
   {
     // get magnetic field for run
@@ -1084,7 +1084,7 @@ struct femtoDreamProducerTaskWithCascades {
                              aod::BCsWithTimestamps const&,
                              aod::FemtoFullTracks const& tracks,
                              o2::aod::V0Datas const& fullV0s,
-                             o2::aod::V0sLinked const&,
+                             //o2::aod::V0sLinked const&,
                              o2::aod::CascDatas const& fullCascades)
   {
     // get magnetic field for run
