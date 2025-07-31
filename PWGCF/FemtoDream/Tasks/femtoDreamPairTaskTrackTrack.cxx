@@ -35,6 +35,7 @@
 #include "PWGCF/FemtoDream/Core/femtoDreamEventHisto.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamPairCleaner.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamContainer.h"
+//#include "PWGCF/FemtoDream/Core/femtoDreamDetaDphiStar_simple.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamDetaDphiStar.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamUtils.h"
 
@@ -225,6 +226,8 @@ struct femtoDreamPairTaskTrackTrack {
   FemtoDreamPairCleaner<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kTrack> pairCleaner;
   FemtoDreamDetaDphiStar<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kTrack> pairCloseRejectionSE;
   FemtoDreamDetaDphiStar<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kTrack> pairCloseRejectionME;
+  //FemtoDreamDetaDphiStar_simple<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kTrack> pairCloseRejectionSE;
+  //FemtoDreamDetaDphiStar_simple<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kTrack> pairCloseRejectionME;
   /// Histogram output
   HistogramRegistry Registry{"Output", {}, OutputObjHandlingPolicy::AnalysisObject};
 

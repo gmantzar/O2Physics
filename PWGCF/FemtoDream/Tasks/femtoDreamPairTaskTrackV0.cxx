@@ -29,7 +29,8 @@
 #include "PWGCF/FemtoDream/Core/femtoDreamEventHisto.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamPairCleaner.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamContainer.h"
-#include "PWGCF/FemtoDream/Core/femtoDreamDetaDphiStar.h"
+//#include "PWGCF/FemtoDream/Core/femtoDreamDetaDphiStar.h"
+#include "PWGCF/FemtoDream/Core/femtoDreamDetaDphiStar_simple.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamUtils.h"
 
 using namespace o2;
@@ -75,6 +76,8 @@ struct femtoDreamPairTaskTrackV0 {
 
   /// Histogramming for Event
   FemtoDreamEventHisto eventHisto;
+  using FilteredCollisions = soa::Filtered<FDCollisions>;
+  using FilteredCollision = FilteredCollisions::iterator;
 
   using FilteredMaskedCollisions = soa::Filtered<soa::Join<FDCollisions, FDColMasks, FDDownSample>>;
   using FilteredMaskedCollision = FilteredMaskedCollisions::iterator;
@@ -220,8 +223,10 @@ struct femtoDreamPairTaskTrackV0 {
   FemtoDreamContainer<femtoDreamContainer::EventType::same, femtoDreamContainer::Observable::kstar> sameEventCont;
   FemtoDreamContainer<femtoDreamContainer::EventType::mixed, femtoDreamContainer::Observable::kstar> mixedEventCont;
   FemtoDreamPairCleaner<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kV0> pairCleaner;
-  FemtoDreamDetaDphiStar<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kV0> pairCloseRejectionSE;
-  FemtoDreamDetaDphiStar<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kV0> pairCloseRejectionME;
+  //FemtoDreamDetaDphiStar<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kV0> pairCloseRejectionSE;
+  //FemtoDreamDetaDphiStar<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kV0> pairCloseRejectionME;
+  FemtoDreamDetaDphiStar_simple<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kV0> pairCloseRejectionSE;
+  FemtoDreamDetaDphiStar_simple<aod::femtodreamparticle::ParticleType::kTrack, aod::femtodreamparticle::ParticleType::kV0> pairCloseRejectionME;
 
   /// Histogram output
   HistogramRegistry Registry{"Output", {}, OutputObjHandlingPolicy::AnalysisObject};
@@ -351,6 +356,19 @@ struct femtoDreamPairTaskTrackV0 {
       }
     }
   }
+  
+  void processSameEvent(FilteredCollision const& col, FDParticles const& parts)
+  {
+    //if ((col.bitmaskTrackOne() & BitMask) != BitMask || (col.bitmaskTrackTwo() & BitMask) != BitMask) {
+    //  return;
+    //}
+    eventHisto.fillQA<false>(col);
+    auto SliceTrk1 = PartitionTrk1->sliceByCached(aod::femtodreamparticle::fdCollisionId, col.globalIndex(), cache);
+    auto SliceV02 = PartitionV02->sliceByCached(aod::femtodreamparticle::fdCollisionId, col.globalIndex(), cache);
+    doSameEvent<false>(SliceTrk1, SliceV02, parts, col);
+  }
+  PROCESS_SWITCH(femtoDreamPairTaskTrackV0, processSameEvent, "Enable processing same event without masks", false);
+
 
   void processSameEventMasked(FilteredMaskedCollision const& col, FDParticles const& parts)
   {
