@@ -517,10 +517,9 @@ struct FemtoDreamProducerTaskReso {
       cascadeCuts.setInvMassLimits(confCascSel.confCascInvMassLowLimit, confCascSel.confCascInvMassUpLimit);
       cascadeCuts.setV0InvMassLimits(confCascSel.confCascV0InvMassLowLimit, confCascSel.confCascV0InvMassUpLimit);
       if (confCascSel.confCascRejectCompetingMass) {
-      cascadeCuts.setCompetingInvMassLimits(confCascSel.confCascInvCompetingMassLowLimit, confCascSel.confCascInvCompetingMassUpLimit);
+        cascadeCuts.setCompetingInvMassLimits(confCascSel.confCascInvCompetingMassLowLimit, confCascSel.confCascInvCompetingMassUpLimit);
       }
     }
-
 
     if (confIsActivateReso.value) {
       resoCuts.setDaughterCuts(femto_dream_reso_selection::kPosdaugh, Resonance.confDaughterCharge, femtoDreamTrackSelection::kSign, femtoDreamSelection::kEqual);
@@ -912,7 +911,7 @@ struct FemtoDreamProducerTaskReso {
     if (!colCuts.isSelectedCollision(col)) {
       return;
     }
-    
+
     if (confIsActivateCascade.value) {
       if (colCuts.isEmptyCollision(col, tracks, trackCuts) && colCuts.isCollisionWithoutTrkCasc(col, fullCascades, cascadeCuts, tracks)) {
         return;
@@ -1085,7 +1084,6 @@ struct FemtoDreamProducerTaskReso {
         }
       }
     }
-
 
     if (confIsActivateCascade.value) {
       for (auto& casc : fullCascades) {
