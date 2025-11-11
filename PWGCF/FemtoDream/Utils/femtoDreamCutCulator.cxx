@@ -40,6 +40,8 @@ int main(int /*argc*/, char* argv[])
     std::string choice;
     std::cin >> choice;
 
+    std::string prefix = "";
+
     if (choice == std::string("T")) {
       cut.setTrackSelectionFromFile("ConfTrk");
       cut.setPIDSelectionFromFile("ConfTrk");
@@ -50,18 +52,27 @@ int main(int /*argc*/, char* argv[])
       cut.setTrackSelectionFromFile("ConfChild");
       cut.setPIDSelectionFromFile("ConfChild");
     } else if (choice == std::string("C")) {
+      std::cout << "Are you using generic Cascades, Xis, or Omegas (C/X/O)? >";
+      std::cin >> choice;
+      if(choice == std::string("X")){
+        prefix = "confXi";
+      } else if(choice == std::string("O")){
+        prefix = "confOmega";
+      } else {
+        prefix = "ConfCascade";
+      }
       std::cout << "Do you want to select cascades, V0-Daughter tracks of the cascades or the Bachelor track (C/V/B)? >";
       std::cin >> choice;
       if (choice == std::string("C")) {
-        cut.setCascadeSelectionFromFile("ConfCascade");
+        cut.setCascadeSelectionFromFile(prefix.c_str());
         choice = "C";
       } else if (choice == std::string("V")) {
-        cut.setTrackSelectionFromFile("ConfCascV0Child");
-        cut.setPIDSelectionFromFile("ConfCascV0Child");
+        cut.setTrackSelectionFromFile((prefix+"V0Child").c_str());
+        cut.setPIDSelectionFromFile((prefix+"V0Child").c_str());
         choice = "T";
       } else if (choice == std::string("B")) {
-        cut.setTrackSelectionFromFile("ConfCascBachelor");
-        cut.setPIDSelectionFromFile("ConfCascBachelor");
+        cut.setTrackSelectionFromFile((prefix+"Bachelor").c_str());
+        cut.setPIDSelectionFromFile((prefix+"Bachelor").c_str());
         choice = "T";
       } else {
         std::cout << "Option not recognized. Break...";

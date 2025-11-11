@@ -60,6 +60,7 @@ class FemtoDreamCutculator
 
     // check the config file for all known producer task
     std::vector<const char*> ProducerTasks = {
+      //"femto-dream-producer-task", "femto-dream-producer-reduced-task", "femto-dream-producer-task-with-cascades", "femto-dream-producer-task-reso"};
       "femto-dream-producer-task", "femto-dream-producer-reduced-task", "femto-dream-producer-task-with-cascades"};
     for (auto& Producer : ProducerTasks) {
       if (root.count(Producer) > 0) {
