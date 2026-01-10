@@ -67,8 +67,6 @@ struct femtoDreamPairTaskTrackCascade {
   Filter EventMultiplicityPercentile = aod::femtodreamcollision::multV0M >= EventSel.MultPercentileMin && aod::femtodreamcollision::multV0M <= EventSel.MultPercentileMax;
   /// Histogramming for Event
   FemtoDreamEventHisto eventHisto;
-  //using FilteredCollisions = FDCollisions;
-  //using FilteredMCCollisions = soa::Join<aod::FDCollisions, aod::FDMCCollLabels>;
   using FilteredCollisions = soa::Filtered<FDCollisions>;
   using FilteredMCCollisions = soa::Filtered<soa::Join<aod::FDCollisions, aod::FDMCCollLabels>>;
   using FilteredCollision = FilteredCollisions::iterator;

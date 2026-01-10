@@ -18,21 +18,24 @@
 #ifndef PWGCF_FEMTODREAM_UTILS_FEMTODREAMCUTCULATOR_H_
 #define PWGCF_FEMTODREAM_UTILS_FEMTODREAMCUTCULATOR_H_
 
-#include <bitset>
-#include <functional>
-#include <iostream>
-#include <random>
-#include <string>
-#include <vector>
-#include <algorithm>
-#include <iterator>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
-
+#include "PWGCF/FemtoDream/Core/femtoDreamCascadeSelection.h"
+#include "PWGCF/FemtoDream/Core/femtoDreamResoSelection.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamSelection.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamTrackSelection.h"
 #include "PWGCF/FemtoDream/Core/femtoDreamV0Selection.h"
-#include "PWGCF/FemtoDream/Core/femtoDreamCascadeSelection.h"
+
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+
+#include <algorithm>
+#include <bitset>
+#include <functional>
+#include <iostream>
+#include <iterator>
+#include <random>
+#include <string>
+#include <vector>
+#include <cstring>
 
 namespace o2::analysis::femtoDream
 {
@@ -60,15 +63,26 @@ class FemtoDreamCutculator
 
     // check the config file for all known producer task
     std::vector<const char*> ProducerTasks = {
-      "femto-dream-producer-task", "femto-dream-producer-reduced-task", "femto-dream-producer-task-with-cascades"};
+      "femto-dream-producer-task", "femto-dream-producer-reduced-task", "femto-dream-producer-task-with-cascades", "femto-dream-producer-task-reso"};
     for (auto& Producer : ProducerTasks) {
       if (root.count(Producer) > 0) {
         mConfigTree = root.get_child(Producer);
         std::cout << "Found " << Producer << " in " << configFile << std::endl;
+        if (std::strcmp(Producer,"femto-dream-producer-task-reso") == 0)
+        {
+          ProducerIsReso = true;
+        } else {
+          ProducerIsReso = false;
+        }
         break;
       }
     }
   };
+
+  bool getProducerIsReso()
+  {
+    return ProducerIsReso;
+  }
 
   /// Generic function that retrieves a given selection from the boost ptree and
   /// returns an std::vector in the proper format \param name Name of the
@@ -116,18 +130,40 @@ class FemtoDreamCutculator
     for (const auto& sel : mConfigTree) {
       std::string sel_name = sel.first;
       femtoDreamTrackSelection::TrackSel obs;
-      if (sel_name.find(prefix) != std::string::npos) {
-        int index = FemtoDreamTrackSelection::findSelectionIndex(
-          std::string_view(sel_name), prefix);
-        if (index >= 0) {
-          obs = femtoDreamTrackSelection::TrackSel(index);
-        } else {
-          continue;
+      /// for Resonances and Tracks the Configs are placed in a struct
+      if (sel_name == "Track" || sel_name == "Resonance" || sel_name == "Cascade") {
+        for (const auto& subsel : sel.second) {
+          std::string subsel_name = subsel.first;
+          std::string newPrefix = sel_name + "." + prefix; /// adjust prefix, so setSelection can find those selections
+          const char* newPrefixChar = newPrefix.c_str();
+          if (subsel_name.find(prefix) != std::string::npos) {
+            int index = FemtoDreamTrackSelection::findSelectionIndex(
+              std::string_view(subsel_name), prefix);
+            if (index >= 0) {
+              obs = femtoDreamTrackSelection::TrackSel(index);
+            } else {
+              continue;
+            }
+            if (obs == femtoDreamTrackSelection::TrackSel::kPIDnSigmaMax)
+              continue; // kPIDnSigmaMax is a special case
+            setTrackSelection(obs, FemtoDreamTrackSelection::getSelectionType(obs),
+                              newPrefixChar);
+          }
         }
-        if (obs == femtoDreamTrackSelection::TrackSel::kPIDnSigmaMax)
-          continue; // kPIDnSigmaMax is a special case
-        setTrackSelection(obs, FemtoDreamTrackSelection::getSelectionType(obs),
-                          prefix);
+      } else { /// selections are not placed in a struct (V0)
+        if (sel_name.find(prefix) != std::string::npos) {
+          int index = FemtoDreamTrackSelection::findSelectionIndex(
+            std::string_view(sel_name), prefix);
+          if (index >= 0) {
+            obs = femtoDreamTrackSelection::TrackSel(index);
+          } else {
+            continue;
+          }
+          if (obs == femtoDreamTrackSelection::TrackSel::kPIDnSigmaMax)
+            continue; // kPIDnSigmaMax is a special case
+          setTrackSelection(obs, FemtoDreamTrackSelection::getSelectionType(obs),
+                            prefix);
+        }
       }
     }
   }
@@ -139,20 +175,39 @@ class FemtoDreamCutculator
     std::string PIDnodeName = std::string(prefix) + "PIDspecies";
     std::string PIDNsigmaNodeName = std::string(prefix) + "PIDnSigmaMax";
     try {
-      boost::property_tree::ptree& pidNode = mConfigTree.get_child(PIDnodeName);
-      boost::property_tree::ptree& pidValues = pidNode.get_child("values");
-      for (auto& val : pidValues) {
-        mPIDspecies.push_back(
-          static_cast<o2::track::PID::ID>(std::stoi(val.second.data())));
-      }
-      boost::property_tree::ptree& pidNsigmaNode = mConfigTree.get_child(PIDNsigmaNodeName);
-      boost::property_tree::ptree& pidNsigmaValues = pidNsigmaNode.get_child("values");
-      for (auto& val : pidNsigmaValues) {
-        mPIDValues.push_back(std::stof(val.second.data()));
-      }
+      loadPIDFromNode(PIDnodeName, PIDNsigmaNodeName);
     } catch (const boost::property_tree::ptree_error& e) {
-      std::cout << "PID selection not avalible for these skimmed data."
-                << std::endl;
+      /// first try to search in structs
+      std::vector<std::string> structs{"Track", "Resonance", "Cascade"}; /// Hard-coded number and names of structs
+      bool found = false;
+      for (auto& structname : structs) {
+        try {
+          std::string PIDnodeNameStruct = structname + "." + PIDnodeName;
+          std::string PIDNsigmaNodeNameStruct = structname + "." + PIDNsigmaNodeName;
+          loadPIDFromNode(PIDnodeNameStruct, PIDNsigmaNodeNameStruct);
+          found = true;
+        } catch (const boost::property_tree::ptree_error& e) {
+          // do nothing
+        }
+      }
+      if (!found) {
+        std::cout << "PID selection not avalible for these skimmed data." << std::endl;
+      }
+    }
+  }
+
+  void loadPIDFromNode(std::string PIDnodeName, std::string PIDNsigmaNodeName)
+  {
+    boost::property_tree::ptree& pidNode = mConfigTree.get_child(PIDnodeName);
+    boost::property_tree::ptree& pidValues = pidNode.get_child("values");
+    for (auto& val : pidValues) {
+      mPIDspecies.push_back(
+        static_cast<o2::track::PID::ID>(std::stoi(val.second.data())));
+    }
+    boost::property_tree::ptree& pidNsigmaNode = mConfigTree.get_child(PIDNsigmaNodeName);
+    boost::property_tree::ptree& pidNsigmaValues = pidNsigmaNode.get_child("values");
+    for (auto& val : pidNsigmaValues) {
+      mPIDValues.push_back(std::stof(val.second.data()));
     }
   }
 
@@ -194,6 +249,179 @@ class FemtoDreamCutculator
     }
   }
 
+  /// Specialization of the setSelection function for Reso
+
+  /// The selection passed to the function is retrieved from the dpl-config.json
+  /// \param obs Observable of the track selection
+  /// \param type Type of the track selection
+  /// \param prefix Prefix which is added to the name of the Configurable
+  void setResoSelection(femto_dream_reso_selection::ResoSel obs,
+                        femtoDreamSelection::SelectionType type,
+                        const char* prefix)
+  {
+    auto tmpVec =
+      setSelection(FemtoDreamResoSelection::getSelectionName(obs, prefix));
+    if (tmpVec.size() > 0) {
+      mResoSel.setSelection(tmpVec, obs, type);
+    }
+  }
+
+  /// Automatically retrieves Reso selections from the dpl-config.json
+  /// \param prefix Prefix which is added to the name of the Configurable
+  void setResoSelectionFromFile(const char* prefix)
+  {
+    /// every Reso selection is placed in the struct
+    boost::property_tree::ptree& ResonanceStruct = mConfigTree.get_child("Resonance");
+    for (const auto& sel : ResonanceStruct) {
+      std::string sel_name = sel.first;
+      femto_dream_reso_selection::ResoSel obs;
+      if (sel_name.find(prefix) != std::string::npos) {
+        int index = FemtoDreamResoSelection::findSelectionIndex(
+          std::string_view(sel_name), prefix);
+        if (index >= 0) {
+          obs = femto_dream_reso_selection::ResoSel(index);
+        } else {
+          continue;
+        }
+        std::string newPrefix = std::string("Resonance.") + prefix; /// adjust prefix, so setSelection can find those selections
+        const char* newPrefixChar = newPrefix.c_str();
+        setResoSelection(obs, FemtoDreamResoSelection::getSelectionType(obs),
+                         newPrefixChar);
+      }
+    }
+  }
+
+  // Takes as input string of tokens sperated by a delimeter e.g a|b
+  // And fill a vector with the tokens as entry e.g {a,b}
+  std::vector<std::string> Split(const std::string& s, const std::string& delimiter)
+  {
+    std::vector<std::string> tokens;
+    size_t start = 0, end = 0;
+    while ((end = s.find(delimiter, start)) != std::string::npos) {
+      tokens.push_back(s.substr(start, end - start));
+      start = end + delimiter.length();
+    }
+    tokens.push_back(s.substr(start));
+    return tokens;
+  }
+
+  // finds the mostsignificant bit of a decimal value
+  // returns value for shifting
+  template <typename V>
+  size_t numBitsUsed(V const& origvalue)
+  {
+    size_t bits = 0;
+    auto value = origvalue;
+    while (value != 0) {
+      ++bits;
+      value >>= 1;
+    }
+    return bits;
+  }
+
+  // Takes as input string of decimal values and sign
+  // gives as pouput merged pid-cutbits for mother particle of the resonance
+  template <typename V>
+  void Bitmerger(std::string value, V const& output)
+  {
+    std::vector<std::string> vec = Split(value, "|");
+
+    uint32_t neg_TPC = static_cast<uint32_t>(std::stoul(vec[0]));
+    uint32_t neg_TPCTOF = static_cast<uint32_t>(std::stoul(vec[1]));
+
+    auto outputNegMerged_TPCBit = (neg_TPC << numBitsUsed<uint32_t>(output)) | output;
+    auto outputNegMerged_TPCTOFBit = (neg_TPCTOF << numBitsUsed<uint32_t>(output)) | output;
+
+    std::cout << "+++++++++++++++++++++++++++++++++" << std::endl;
+    std::cout << "Bitstring for NegMerged_TPC: " << outputNegMerged_TPCBit << std::endl;
+    std::cout << "+++++++++++++++++++++++++++++++++" << std::endl;
+    std::cout << "Bitstring for NegMerged_TPCTOF: " << outputNegMerged_TPCTOFBit << std::endl;
+    std::cout << "+++++++++++++++++++++++++++++++++" << std::endl;
+  }
+
+  std::string Pairing(std::string readin) {
+    std::vector<std::string> vec = Split(readin, ","); // elements of the Form TPC_i|TPCTOF_i
+
+    //set seed
+    static std::random_device rd;
+    static std::mt19937 rng(rd());
+
+    //select entry of the vector
+    std::uniform_int_distribution<std::size_t> dist(0, vec.size() - 1);
+    std::size_t idx = dist(rng);
+
+    return vec[idx]; // returns TPC_i|TPCTOF_i --> insert into Bitmerger
+  }
+
+
+  //If you don't want to iterate over a certain cut/cuts (DCA,CPA etc.) you can set the value
+  //and frreze it for variations
+  template <typename T>
+  void freeze(std::string const& set, T objectSelection) {
+
+    
+    if (set == std::string("y")) {
+
+      //probably need to include the vector here --> get enum / float
+      auto selectionVariables = objectSelection.getSelectionVariables();
+
+      //access SelVar and SelValue
+      for( auto selVar : selectionVariables) {
+
+        std::cout << "Do you want to set the value for " << objectSelection.getSelectionHelper(selVar) << "(y/n)? >" << std::endl;
+        std::string input; 
+        std::cin >> input;
+        
+        if (input == std::string("y")) {
+          std::cout << "Provide value for "<< selVar <<std::endl;
+          float value;
+          std::cin >> value;
+          Sel.emplace_back(selVar, value); // maybe static cast SelVar
+        } else { 
+          continue;
+        }
+      }
+    } else {
+      return;
+    }
+  }
+
+  void Assign(std::string const& set, std::string const& choice) {
+
+    if (choice == std::string("T")) {
+      freeze(set, mTrackSel);
+    } else if (choice == std::string("V")) {
+      freeze(set, mV0Sel);
+    } else if (choice == std::string("C")) {
+      freeze(set, mCascadeSel);
+    } else if (choice == std::string("R")) {
+      std::cout << "Please provide the following Nsigma-values for TPC/TPCTOF: TPC_1|TPCTOF_1,TPC_2|TPCTOF_2,..." << std::endl;
+      std::cin >> readin;
+    }
+  }
+
+
+  
+  ///Helper task to acces line from txt-file
+  std::string getLine(const std::string& filename, int lineNumber) {
+    std::ifstream file(filename);
+    std::string line;
+    int currentLine = 0; // first line has value 0
+
+    if (!file.is_open()) {
+        throw std::runtime_error("Could not open file: " + filename);
+    }
+
+    while (std::getline(file, line)) {
+        if (currentLine == lineNumber) {
+            return line;  // found the line
+        }
+        ++currentLine;
+    }
+
+    throw std::out_of_range("Line number out of range");
+  }
+
   /// Specialization of the setSelection function for Cascades
 
   /// The selection passed to the function is retrieved from the dpl-config.json
@@ -218,7 +446,26 @@ class FemtoDreamCutculator
     for (const auto& sel : mConfigTree) {
       std::string sel_name = sel.first;
       femtoDreamCascadeSelection::CascadeSel obs;
-      if (sel_name.find(prefix) != std::string::npos) {
+
+      if(sel_name == "Cascade") {
+        for (const auto& subsel : sel.second) { 
+          std::string subsel_name = subsel.first;
+          std::string newPrefix = sel_name + "." + prefix; 
+          const char* newPrefixChar = newPrefix.c_str();
+          if (subsel_name.find(prefix) != std::string::npos) {
+            int index = FemtoDreamCascadeSelection::findSelectionIndex(
+            std::string_view(subsel_name), prefix);
+            if (index >= 0) {
+              obs = femtoDreamCascadeSelection::CascadeSel(index);
+            } else {
+              continue;
+            }
+            setCascadeSelection(obs, FemtoDreamCascadeSelection::getSelectionType(obs),
+                                newPrefixChar);
+          }
+        }
+      } else {
+        if (sel_name.find(prefix) != std::string::npos) {
         int index = FemtoDreamCascadeSelection::findSelectionIndex(
           std::string_view(sel_name), prefix);
         if (index >= 0) {
@@ -228,6 +475,7 @@ class FemtoDreamCutculator
         }
         setCascadeSelection(obs, FemtoDreamCascadeSelection::getSelectionType(obs),
                             prefix);
+      }
       }
     }
   }
@@ -242,16 +490,16 @@ class FemtoDreamCutculator
   /// \param selectionType Selection type under investigation, as defined in the
   /// selection class
   template <typename T1, typename T2>
-  void checkForSelection(aod::femtodreamparticle::cutContainerType& output,
-                         size_t& counter, T1 objectSelection, T2 selectionType,
-                         bool SysChecks, float sign)
-  {
+void checkForSelection(aod::femtodreamparticle::cutContainerType& output,
+                       size_t& counter, T1 objectSelection, T2 selectionType,
+                       bool SysChecks, float sign)
+{
     /// Output of the available selections and user input
     std::cout << "Selection: "
               << objectSelection.getSelectionHelper(selectionType) << " - (";
     auto selVec = objectSelection.getSelections(selectionType);
     for (auto selIt : selVec) {
-      std::cout << selIt.getSelectionValue() << " ";
+        std::cout << selIt.getSelectionValue() << " ";
     }
     std::cout << ")" << std::endl
               << " > ";
@@ -260,75 +508,89 @@ class FemtoDreamCutculator
     float input;
 
     if (SysChecks) {
-      if (objectSelection.getSelectionHelper(selectionType) == std::string("Sign of the track")) {
-        input = sign;
-        std::cout << sign << std::endl;
-      } else {
-        // Seed the random number generator
-        std::random_device rd;
-        std::mt19937 rng(rd());
-        // Select a random element
-        std::uniform_int_distribution<int> uni(0, selVec.size() - 1);
-        int randomIndex = uni(rng);
-        input = selVec[randomIndex].getSelectionValue();
-        std::cout << input << std::endl;
-      }
+        if (objectSelection.getSelectionHelper(selectionType) == std::string("Sign of the track") ||
+            objectSelection.getSelectionHelper(selectionType) == std::string("+1 for lambda, -1 for antilambda")) {
+            input = sign;
+            std::cout << sign << std::endl;
+        } else {
+            // Seed the random number generator
+            std::random_device rd;
+            std::mt19937 rng(rd());
+            // Select a random element
+            std::uniform_int_distribution<int> uni(0, selVec.size() - 1);
+            int randomIndex = uni(rng);
+            bool found = false;
+            //std::cout << "value of selVec[randomIndex].getSelectionVariable()" << selVec[randomIndex].getSelectionVariable()<< std::endl;
+            for (auto el : Sel) {
+
+                auto selVar = selVec[randomIndex].getSelectionVariable();
+                if (static_cast<int>(selVar) == el.first) { //check if this is actually correct
+                    input = el.second;
+                    std::cout << input << std::endl;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                input = selVec[randomIndex].getSelectionValue();
+                std::cout << input << std::endl;
+            }
+        }
     } else {
-      if (selVec.size() == 1) {
-        input = selVec[0].getSelectionValue();
-        std::cout << input << std::endl;
-      } else {
-        std::cin >> in;
-        input = std::stof(in);
-      }
+        if (selVec.size() == 1) {
+            input = selVec[0].getSelectionValue();
+            std::cout << input << std::endl;
+        } else {
+            std::cin >> in;
+            input = std::stof(in);
+        }
     }
 
-    /// First we check whether the input is actually contained within the
-    /// options
+    /// First we check whether the input is actually contained within the options
     bool inputSane = false;
     for (auto sel : selVec) {
-      if (std::abs(sel.getSelectionValue() - input) <=
-          std::abs(1.e-6 * input)) {
-        inputSane = true;
-      }
+        if (std::abs(sel.getSelectionValue() - input) <= std::abs(1.e-6 * input)) {
+            inputSane = true;
+        }
     }
 
     /// If the input is sane, the selection bit is put together
     if (inputSane) {
-      int internal_index = 0;
-      for (auto sel : selVec) {
-        double signOffset;
-        switch (sel.getSelectionType()) {
-          case femtoDreamSelection::SelectionType::kEqual:
-            signOffset = 0.;
-            break;
-          case (femtoDreamSelection::SelectionType::kLowerLimit):
-          case (femtoDreamSelection::SelectionType::kAbsLowerLimit):
-            signOffset = 1.;
-            break;
-          case (femtoDreamSelection::SelectionType::kUpperLimit):
-          case (femtoDreamSelection::SelectionType::kAbsUpperLimit):
-            signOffset = -1.;
-            break;
-        }
+        int internal_index = 0;
+        for (auto sel : selVec) {
+            double signOffset;
+            switch (sel.getSelectionType()) {
+                case femtoDreamSelection::SelectionType::kEqual:
+                    signOffset = 0.;
+                    break;
+                case (femtoDreamSelection::SelectionType::kLowerLimit):
+                case (femtoDreamSelection::SelectionType::kAbsLowerLimit):
+                    signOffset = 1.;
+                    break;
+                case (femtoDreamSelection::SelectionType::kUpperLimit):
+                case (femtoDreamSelection::SelectionType::kAbsUpperLimit):
+                    signOffset = -1.;
+                    break;
+            }
 
-        /// for upper and lower limit we have to subtract/add an epsilon so that
-        /// the cut is actually fulfilled
-        if (sel.isSelected(input + signOffset * 1.e-6 * input)) {
-          output |= 1UL << counter;
-          for (int i = internal_index; i > 0; i--) {
-            output &= ~(1UL << (counter - i));
-          }
+            /// for upper and lower limit we have to subtract/add an epsilon so that
+            /// the cut is actually fulfilled
+            if (sel.isSelected(input + signOffset * 1.e-6 * input)) {
+                output |= 1UL << counter;
+                for (int i = internal_index; i > 0; i--) {
+                    output &= ~(1UL << (counter - i));
+                }
+            }
+            ++counter;
+            ++internal_index;
         }
-        ++counter;
-        ++internal_index;
-      }
     } else {
-      std::cout << "Choice " << in << " not recognized - repeating"
-                << std::endl;
-      checkForSelection(output, counter, objectSelection, selectionType, SysChecks, sign);
+        std::cout << "Choice " << in << " not recognized - repeating"
+                  << std::endl;
+        checkForSelection(output, counter, objectSelection, selectionType, SysChecks, sign);
     }
-  }
+}
 
   /// This function iterates over all selection types of a given class and puts
   /// together the bit-wise container \tparam T1 Selection class under
@@ -351,7 +613,7 @@ class FemtoDreamCutculator
 
   /// This is the function called by the executable that then outputs the full
   /// selection bit-wise container incorporating the user choice of selections
-  void analyseCuts(std::string choice, bool SysChecks = false, float sign = 1)
+  void analyseCuts(std::string choice, bool SysChecks = false, float sign = 1, std::string flag = "")
   {
     aod::femtodreamparticle::cutContainerType output = -1;
     if (choice == std::string("T")) {
@@ -360,6 +622,29 @@ class FemtoDreamCutculator
       output = iterateSelection(mV0Sel, SysChecks, sign);
     } else if (choice == std::string("C")) {
       output = iterateSelection(mCascadeSel, SysChecks, sign);
+    } else if (choice == std::string("R")) {
+      if (SysChecks) {
+        std::string bitstring = Pairing(readin);
+        output = iterateSelection(mResoSel, SysChecks, sign);
+        std::vector<std::string> Sel = Split(bitstring, "|");
+        std::cout << "Selected NsigmaTPC: " << Sel[0] << std::endl;
+        std::cout << "Selected NsigmaTPCTOF: " << Sel[1] << std::endl; // seems to work
+        std::cout << "bistring: " << bitstring << std::endl;
+        std::cout << "output: " << output << std::endl;
+        Bitmerger<aod::femtodreamparticle::cutContainerType>(bitstring, output);
+        return;
+          
+      } else if (!SysChecks) {
+        output = iterateSelection(mResoSel, SysChecks, sign);
+        std::cout << "++++++++ Starting Bitmerger ++++++++" << std::endl;
+        std::cout << "You are now using the bitmerger to create pid-cut for the Resonance" << std::endl;
+        std::cout << "Please provide the following: Nsigma-TPC_neg_daugh|Nsigma-TPCTOF_neg_daugh as decimal values" << std::endl
+                  << " > ";
+        std::string bitstring;
+        std::cin >> bitstring;
+        Bitmerger<aod::femtodreamparticle::cutContainerType>(bitstring, output);
+        return;
+      }  
     } else {
       std::cout << "Option " << choice
                 << " not recognized - available options are (T/V)" << std::endl;
@@ -379,9 +664,13 @@ class FemtoDreamCutculator
     std::sort(mPIDValues.begin(), mPIDValues.end(), std::greater<>());
     int Bit = 0;
 
-    std::cout << "Activate ITS PID (only valid for tracks)? (y/n)";
     std::string choicePID;
-    std::cin >> choicePID;
+    if (flag == std::string("T")) {
+      std::cout << "Activate ITS PID (only valid for tracks)? (y/n)";
+      std::cin >> choicePID;
+    } else {
+      choicePID = std::string("n"); 
+    }
 
     std::cout << "+++++++++++++++++++++++++++++++++" << std::endl;
     if (choicePID == std::string("n")) {
@@ -421,9 +710,13 @@ class FemtoDreamCutculator
   boost::property_tree::ptree mConfigTree;     ///< the dpl-config.json buffered into a ptree
   FemtoDreamTrackSelection mTrackSel;          ///< for setting up the bit-wise selection container for tracks
   FemtoDreamV0Selection mV0Sel;                ///< for setting up the bit-wise selection container for V0s
+  FemtoDreamResoSelection mResoSel;            ///< for setting up the bit-wise selection container for Resos
   FemtoDreamCascadeSelection mCascadeSel;      ///< for setting up the bit-wise selection container for Cascades
   std::vector<o2::track::PID::ID> mPIDspecies; ///< list of particle species for which PID is stored
   std::vector<float> mPIDValues;               ///< list of nsigma values for which PID is stored
+  bool ProducerIsReso;                         ///< bool to later differentiate between upper and lower camel case
+  std::vector<std::pair<int,float>> Sel;               ///< vector of pairs of SelVar and SelVal for freezed variations, how do i initilaize it
+  std::string readin;
 };
 } // namespace o2::analysis::femtoDream
 

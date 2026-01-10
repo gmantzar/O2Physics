@@ -1301,10 +1301,12 @@ struct FemtoDreamProducerTaskReso {
         const auto& bachTrackCasc = casc.template bachelor_as<TrackType>();
 
         if (confIsActivateXi.value) {
-          xiCuts.fillQA<0, aod::femtodreamparticle::ParticleType::kCascade, aod::femtodreamparticle::ParticleType::kCascadeV0Child, aod::femtodreamparticle::ParticleType::kCascadeBachelor>(col, casc, posTrackCasc, negTrackCasc, bachTrackCasc);
+          // xiCuts.fillQA<0, aod::femtodreamparticle::ParticleType::kCascade, aod::femtodreamparticle::ParticleType::kCascadeV0Child, aod::femtodreamparticle::ParticleType::kCascadeBachelor>(col, casc, posTrackCasc, negTrackCasc, bachTrackCasc);
 
           if (xiCuts.isSelectedMinimal(col, casc, posTrackCasc, negTrackCasc, bachTrackCasc)) {
-            xiCuts.fillQA<1, aod::femtodreamparticle::ParticleType::kCascade, aod::femtodreamparticle::ParticleType::kCascadeV0Child, aod::femtodreamparticle::ParticleType::kCascadeBachelor>(col, casc, posTrackCasc, negTrackCasc, bachTrackCasc);
+
+            // xiCuts.fillQA<1, aod::femtodreamparticle::ParticleType::kCascade, aod::femtodreamparticle::ParticleType::kCascadeV0Child, aod::femtodreamparticle::ParticleType::kCascadeBachelor>(col, casc, posTrackCasc, negTrackCasc, bachTrackCasc);
+            //  auto cutContainerCasc = xiCuts.getCutContainer<aod::femtodreamparticle::cutContainerType>(col, casc, v0daugh, posTrackCasc, negTrackCasc, bachTrackCasc);
             auto cutContainerCasc = xiCuts.getCutContainer<aod::femtodreamparticle::cutContainerType>(col, casc, posTrackCasc, negTrackCasc, bachTrackCasc);
 
             // Fill positive child
@@ -1399,12 +1401,14 @@ struct FemtoDreamProducerTaskReso {
             // continue;
           } // if xiCuts.isSelectedMinimal
         } // if confIsActivateXi
-        if (confIsActivateOmega.value) {
+        /*
+        if (confIsActivateOmega.value){
           omegaCuts.fillQA<0, aod::femtodreamparticle::ParticleType::kOmega, aod::femtodreamparticle::ParticleType::kOmegaV0Child, aod::femtodreamparticle::ParticleType::kOmegaBachelor>(col, casc, posTrackCasc, negTrackCasc, bachTrackCasc);
 
           if (omegaCuts.isSelectedMinimal(col, casc, posTrackCasc, negTrackCasc, bachTrackCasc)) {
 
             omegaCuts.fillQA<1, aod::femtodreamparticle::ParticleType::kOmega, aod::femtodreamparticle::ParticleType::kOmegaV0Child, aod::femtodreamparticle::ParticleType::kOmegaBachelor>(col, casc, posTrackCasc, negTrackCasc, bachTrackCasc);
+            // auto cutContainerCasc = xiCuts.getCutContainer<aod::femtodreamparticle::cutContainerType>(col, casc, v0daugh, posTrackCasc, negTrackCasc, bachTrackCasc);
             auto cutContainerCasc = omegaCuts.getCutContainer<aod::femtodreamparticle::cutContainerType>(col, casc, posTrackCasc, negTrackCasc, bachTrackCasc);
 
             // Fill positive child
@@ -1496,9 +1500,11 @@ struct FemtoDreamProducerTaskReso {
               fillDebugCascade(casc, col);                   // QA for Cascade
             }
 
-            // continue;
-          } // if omegaCuts.isSelectedMinimal
-        } // if confIsActivateOmega
+
+            //continue;
+          } //if omegaCuts.isSelectedMinimal
+        } //if confIsActivateOmega
+        */
       } // loop over cascades
     } // at least one cascade active
 
