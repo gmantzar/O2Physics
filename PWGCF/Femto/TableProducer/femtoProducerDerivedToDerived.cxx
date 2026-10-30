@@ -160,6 +160,7 @@ struct FemtoProducerDerivedToDerived {
       static_cast<int>(doprocessTracksK0shorts) + static_cast<int>(doprocessTracksSigma) +
       static_cast<int>(doprocessTracksSigmaPlus) +
       static_cast<int>(doprocessTracksRho0) + static_cast<int>(doprocessTracksPhi) +
+      static_cast<int>(doprocessLambdasXis) +
       static_cast<int>(doprocessTracksMc) + static_cast<int>(doprocessTracksSigmaMc) +
       static_cast<int>(doprocessTracksSigmaPlusMc);
     if (activeProcesses != 1) {
