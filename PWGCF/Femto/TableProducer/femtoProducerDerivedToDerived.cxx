@@ -458,15 +458,15 @@ struct FemtoProducerDerivedToDerived {
   }
   PROCESS_SWITCH(FemtoProducerDerivedToDerived, processTracksPhi, "Process phi and tracks", false);
 
-  void processLambdasXis(FilteredFemtoCollision const& col, FemtoTracks const& tracks, FemtoLambdas const& lambdas, FemtoXis const& xis)
+  void processLambdasXis(femtotables::FilteredFemtoCollision const& col, femtotables::FemtoTracks const& tracks, femtotables::FemtoLambdas const& lambdas, femtotables::FemtoXis const& xis)
   {
-    if (v0Builder.collisionHasTooFewLambdas(col, lambdas, lambdaPartition, cache) || cascadeBuilder.collisionHasTooFewXis(col, xis, xiPartition, cache)) {
+    if (builders.v0Builder.collisionHasTooFewLambdas(col, lambdas, lambdaPartition, cache) || builders.cascadeBuilder.collisionHasTooFewXis(col, xis, xiPartition, cache)) {
       return;
     }
-    trackBuilder.reset(tracks);
-    collisionBuilder.processCollision(col, collisionBuilderProducts);
-    v0Builder.processLambdas(col, lambdas, tracks, lambdaPartition, trackBuilder, cache, v0BuilderProducts, trackBuilderProducts, collisionBuilderProducts);
-    cascadeBuilder.processXis(col, xis, tracks, xiPartition, trackBuilder, cache, cascadeBuilderProducts, trackBuilderProducts, collisionBuilderProducts);
+    builders.trackBuilder.reset(tracks);
+    builders.collisionBuilder.processCollision(col, collisionBuilderProducts);
+    builders.v0Builder.processLambdas(col, lambdas, tracks, lambdaPartition, builders.trackBuilder, cache, v0BuilderProducts, trackBuilderProducts, collisionBuilderProducts);
+    builders.cascadeBuilder.processXis(col, xis, tracks, xiPartition, builders.trackBuilder, cache, cascadeBuilderProducts, trackBuilderProducts, collisionBuilderProducts);
   }
   PROCESS_SWITCH(FemtoProducerDerivedToDerived, processLambdasXis, "Process lambdas and xis", false);
 
