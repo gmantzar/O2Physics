@@ -109,6 +109,11 @@ o2physics_add_dpl_workflow(femto-pair-v0-v0
           PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore
           COMPONENT_NAME Analysis)
 
+o2physics_add_dpl_workflow(femto-pair-v0-cascade
+	  SOURCES femtoPairV0Cascade.cxx
+          PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore
+          COMPONENT_NAME Analysis)
+
 o2physics_add_dpl_workflow(femto-pair-mc-particle-mc-particle
           SOURCES femtoPairMcParticleMcParticle.cxx
           PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore
